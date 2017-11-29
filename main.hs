@@ -1,92 +1,108 @@
-import System.Environment
+import System.Environment()
 import System.Random
 import Control.Monad.State
+import Data.List
+import Text.Read
 
 data Tile = DESERT | LAVA | TREASURE | WATER
             deriving (Show, Read)
 
-data GameState = GameState
-  { playerPos :: Maybe PlayerPos
-  , waterSupplies :: Int
-  , treasures :: Int
-  , generator :: IO StdGen}
 
-type Desert = [[Tile]]
+data Params = Params { los :: Int
+                   , maxWater :: Int
+                   , initialSeed :: Int
+                   , treasurelh :: Int
+                   , waterlh :: Int
+                   , portallh :: Int
+                   , lavalh :: Int
+                   , lavalh' :: Int
+                   } deriving (Show)
+
+type Desert = [[Int]]
 type PlayerPos = (Int, Int)
 
 main :: IO b
 main = do
-  (command:args) <- getArgs
-  seed <- newStdGen
-  let game = GameState (Just(0,0)) 0 0 newStdGen
   let ppos = (0,0)
-  gameLoop ppos
+  --params <- paramsLoop
+  let params = Params 1 1 1 1 1 1 1 1
+  let desert = infiniteRandomLists (mkStdGen (initialSeed params))::Desert
+  print (take 6 (desert!!5))
+  printMatrix desert 0 10 0 10
+  gameLoop ppos desert
 
+printMatrix :: Desert -> Int -> Int -> Int -> Int -> IO()
+printMatrix desert startRow endRow startCol endCol = do
+  mapM print (makeSubMatrix desert startRow endRow startCol endCol)
+  return()
+
+makeSubMatrix :: Desert -> Int -> Int -> Int -> Int -> [[Int]]
+makeSubMatrix desert startRow endRow startCol endCol
+  | startRow /= endRow = take (endCol - startCol) (drop startCol (desert !! startRow) ) : makeSubMatrix desert (startRow + 1) endRow startCol endCol
+  | startRow == endRow = []
+
+
+
+infiniteGenerators :: (RandomGen g) => g -> [g]
+infiniteGenerators = unfoldr (Just . split)
+
+infiniteRandomLists :: (RandomGen g) => g -> [[Int]]
+infiniteRandomLists = map (randomRs (0,100)) . infiniteGenerators
 
 randomSt :: (RandomGen g, Random a) => State g a
 randomSt = state random
 
+paramsLoop :: IO Params
+paramsLoop = do
+  putStrLn "Enter parameter s (line of sight of explorer) :"
+  s <- getLine
+  putStrLn "Enter parameter m (maximum measures of water) :"
+  m <- getLine
+  putStrLn "Enter parameter g (initial seed) :"
+  g <- getLine
+  putStrLn "Enter parameter t (likelihood (in %) of treasure in a desert tile) :"
+  t <- getLine
+  putStrLn "Enter parameter w (likelihood (in %) of water tile generation) :"
+  w <- getLine
+  putStrLn "Enter parameter p (likelihood (in %) of portal tile generation) :"
+  p <- getLine
+  putStrLn "Enter parameter l (likelihood (in %) of lava tile generation when none of the previously-generated adjacent tiles is lava) :"
+  l <- getLine
+  putStrLn "Enter parameter ll (likelihood (in %) of lava tile generation when at least one of the previously-generated adjacent tiles is lava) :"
+  ll <- getLine
+  let paramList = [s, m, g, t, w, p, l, ll]
+  let maybeParamList = map readMaybe paramList ::[Maybe Int]
+  if Nothing `elem` maybeParamList
+    then do
+      putStrLn "\n ==== \nWrong paramter input"
+      paramsLoop
+    else do
+      let params' = Params (read s) (read m) (read g) (read t) (read w) (read p) (read l) (read ll)
+      print params'
+      return params'
 
-gameLoop :: PlayerPos -> IO b
-gameLoop ppos = do
-  putStrLn "w,a,s,d"
+
+
+
+gameLoop :: PlayerPos -> Desert -> IO b
+gameLoop ppos desert= do
+  putStrLn "w,a,s,d : "
   input <- getLine
-  case input of
-    "w" -> doMove "w"
-  newpos <- doMove' ppos
-  draw' newpos
-  gameLoop (snd newpos)
+  newpos <- doMove input ppos
+  draw newpos
+  gameLoop (snd newpos) desert
 
-doMove :: String -> IO(State GameState(Maybe PlayerPos))
-doMove "w" =
-  return (move_ "w")
+doMove :: String -> PlayerPos -> IO((), PlayerPos)
+doMove direction ppos =
+  return (runState (move direction) ppos)
 
-move_ :: String -> State GameState (Maybe PlayerPos)
-move_ "w" = do
-  currentState <- get
-  let newPos = moveUp_ (playerPos currentState)
-  put (currentState {playerPos = newPos})
-  return newPos
+draw :: ((), PlayerPos) -> IO()
+draw pos = putStrLn ("(" ++ show (fst(snd pos)) ++ "," ++ show(snd(snd pos)) ++ ")")
 
-doMove' :: PlayerPos -> IO((), PlayerPos)
-doMove' ppos =
-  return (runState test ppos)
-
-test :: State PlayerPos ()
-test = state $ \(a,b) -> ((),(a+1, b))
-
-draw' :: ((), PlayerPos) -> IO()
-draw' pos = putStrLn ("(" ++ show (fst(snd pos)) ++ "," ++ show(snd(snd pos)) ++ ")")
-
-
-
-moveUp_ :: Maybe PlayerPos -> Maybe PlayerPos
-moveUp_ (Just(x,y)) = Just(x-1, y)
-
-draw :: Maybe PlayerPos -> IO()
-draw Nothing = putStrLn "Wrong input"
-draw (Just pos) = putStrLn ("(" ++ show (fst pos) ++ "," ++ show(snd pos) ++ ")")
-
-move :: String -> IO (Maybe PlayerPos)
-move "w" =
-  return (Just (moveUp (0,0)))
-move "a" =
-  return (Just (moveLeft (0,0)))
-move "s" =
-  return (Just (moveDown (0,0)))
-move "d" =
-  return (Just (moveRight (0,0)))
-move _ =
-  return Nothing
-
-moveUp :: PlayerPos -> PlayerPos
-moveUp (x,y) = (x-1, y)
-
-moveLeft :: PlayerPos -> PlayerPos
-moveLeft (x,y) = (x, y-1)
-
-moveDown :: PlayerPos -> PlayerPos
-moveDown (x,y) = (x+1, y)
-
-moveRight :: PlayerPos -> PlayerPos
-moveRight (x,y) = (x, y+1)
+move :: String -> State PlayerPos ()
+move d = state $ \(row, col) -> case d of
+  "w" -> ((), (row-1, col))
+  "s" -> ((), (row+1, col))
+  "d" -> ((), (row, col+1))
+  "a" -> ((), (row, col-1))
+  _ -> ((), (row, col))
