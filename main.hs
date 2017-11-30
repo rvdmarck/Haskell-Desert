@@ -36,8 +36,6 @@ main = do
   let tileList = initTileList params
   let desert = infiniteRandomLists (mkStdGen (initialSeed params))::Desert
   let desert' = (map . map) (corresp tileList) desert
-  printMatrix' desert' 0 10 0 10 ppos
-  --printMatrix desert 0 10 0 10
   gameLoop ppos desert'
 
 corresp :: [String] -> Int -> String
@@ -50,7 +48,7 @@ initTileList params =
   let tmpList = replicate (treasurelh params) "T" ++ replicate (waterlh params) "W" ++ replicate (portallh params) "P" ++ replicate (lavalh params) "L" ++ replicate (lavalh' params) "L'"
   in tmpList ++ replicate (100 - length tmpList) "D"
 
-
+{--
 printMatrix :: Desert -> Int -> Int -> Int -> Int -> IO()
 printMatrix desert startRow endRow startCol endCol = do
   mapM_ print (makeSubMatrix desert startRow endRow startCol endCol)
@@ -61,15 +59,13 @@ makeSubMatrix desert startRow endRow startCol endCol
   | startRow /= endRow = take (endCol - startCol) (drop startCol (desert !! startRow) ) : makeSubMatrix desert (startRow + 1) endRow startCol endCol
   | startRow == endRow = []
 
-placePlayer :: [[String]] -> PlayerPos -> [[String]]
-placePlayer desert ppos =
-  let desert =
-
+--}
 printMatrix' :: [[String]] -> Int -> Int -> Int -> Int -> PlayerPos -> IO()
 printMatrix' desert startRow endRow startCol endCol ppos = do
-  print (desert !! fst ppos !! snd ppos)
-  --let desert !! (fst ppos) !! (snd ppos) = "P" in
-  mapM_ print (makeSubMatrix' desert startRow endRow startCol endCol)
+  let (x,_:ys) = splitAt (snd ppos) (desert !! fst ppos)
+  let (x',_ : ys') = splitAt (fst ppos) desert
+  let d = x' ++ [x ++ "Pl" : ys] ++ ys'
+  mapM_ print (makeSubMatrix' d startRow endRow startCol endCol)
   return()
 
 makeSubMatrix' :: [[String]] -> Int -> Int -> Int -> Int -> [[String]]
@@ -77,10 +73,6 @@ makeSubMatrix' desert startRow endRow startCol endCol
   | startRow /= endRow = take (endCol - startCol) (drop startCol (desert !! startRow) ) : makeSubMatrix' desert (startRow + 1) endRow startCol endCol
   | startRow == endRow = []
 
-
-
-randomSt :: (RandomGen g, Random a) => State g a
-randomSt = state random
 
 paramsLoop :: IO Params
 paramsLoop = do
