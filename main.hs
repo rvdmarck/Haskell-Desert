@@ -29,30 +29,38 @@ infiniteGenerators = unfoldr (Just . split)
 infiniteRandomLists :: (RandomGen g) => g -> [[Int]]
 infiniteRandomLists = map (randomRs (0,100)) . infiniteGenerators
 
-infiniteRandomList :: (RandomGen g, Random a, Num a) => g -> [(a,g)]
-infiniteRandomList = map (randomR (0,100)) . infiniteGenerators
-
 main :: IO b
 main = do
   let ppos = (0,0)
   --params <- paramsLoop
   let params = Params 1 7 1 50 10 5 10 10
   let tileList = initTileList params
-  let randList = map fst (infiniteRandomList (mkStdGen (initialSeed params)))::[Int]
-  print (take 20 randList)
-  let desert = infiniteRandomLists (mkStdGen (initialSeed params))
-  let desert' = (map . map) (corresp tileList params) desert
-  --let desert'' = (map  map) (fillTreasures )
-  gameLoop ppos desert' params (maxWater params)
+  let randomMat = infiniteRandomLists (mkStdGen (initialSeed params))
+  let randomTiles = (map . map) (corresp tileList params) randomMat
+
+  let randomTreasures = infiniteRandomLists (mkStdGen (initialSeed params * 2))
+  let randomTreasuresTiles = (map . map) (corresp' params) randomTreasures
+  let desert = zipWith (zipWith compareTreasure) randomTiles randomTreasuresTiles
+  gameLoop ppos desert params (maxWater params) 0
 
 
 corresp :: [String] -> Params -> Int -> String
 corresp tileList params proba
   | tileList !! proba /= "D" = tileList !! proba
+  | otherwise = "D"
+
+corresp' :: Params -> Int -> String
+corresp' params proba
   | proba <= treasurelh params = "T"
   | otherwise = "D"
 
-
+compareTreasure x y  =
+  if x == "D"
+    then
+      if y =="T"
+        then "T"
+        else "D"
+    else x
 
 randomSt :: (RandomGen g, Random a, Num a) => State g a
 randomSt = state (randomR (0,100))
@@ -64,7 +72,7 @@ initTileList :: Params -> [String]
 initTileList params =
   --let tmpList = replicate (treasurelh params) "T" ++ replicate (waterlh params) "W" ++ replicate (portallh params) "P" ++ replicate (lavalh params) "L" ++ replicate (lavalh' params) "L'"
   let tmpList = replicate (waterlh params) "W" ++ replicate (portallh params) "P" ++ replicate (lavalh params) "L" ++ replicate (lavalh' params) "L'"
-  in tmpList ++ replicate (100 - length tmpList) "D"
+    in tmpList ++ replicate (100 - length tmpList) "D"
 
 {--
 printMatrix :: Desert -> Int -> Int -> Int -> Int -> IO()
@@ -132,33 +140,58 @@ paramsLoop = do
 
 
 
-gameLoop :: PlayerPos -> Sdesert -> Params -> Int -> IO b
-gameLoop ppos desert params currentWater = do
+gameLoop :: PlayerPos -> Sdesert -> Params -> Int -> Int -> IO b
+gameLoop ppos desert params currentWater currentTreasures = do
   printMatrix' desert 0 10 0 10 ppos
   putStrLn "w,a,s,d : "
   input <- getLine
   newpos <- doMove input ppos
   draw newpos
-  currentWater' <- fillOrDecrementWater currentWater (desert !! fst(snd newpos) !! snd (snd newpos)) (maxWater params)
+  currentWater' <- fillOrDecrementWater currentWater desert newpos (maxWater params)
+  currentTreasures' <- checkTreasureFound currentTreasures (desert !! fst(snd newpos) !! snd (snd newpos))
   print currentWater'
-  gameLoop (snd newpos) desert params currentWater'
+  print currentTreasures'
+  if currentTreasures' /= currentTreasures
+    then do
+      desert' <- pickUpTreasure desert (snd newpos)
+      _ <- return desert'
+      gameLoop (snd newpos) desert' params currentWater' currentTreasures'
+    else do
+      desert' <- returnDesert desert
+      _ <- return desert'
+      gameLoop (snd newpos) desert' params currentWater' currentTreasures'
 
-doMove :: String -> PlayerPos -> IO((), PlayerPos)
+
+doMove :: String -> PlayerPos -> IO(Bool, PlayerPos)
 doMove direction ppos =
   return (runState (move direction) ppos)
 
-fillOrDecrementWater :: Int -> String -> Int -> IO Int
-fillOrDecrementWater currentWater tile maxWater' =
-  if tile == "W" then return maxWater' else return (currentWater-1)
+fillOrDecrementWater :: Int -> [[String]] -> (Bool, PlayerPos) -> Int -> IO Int
+fillOrDecrementWater currentWater desert newpos maxWater'
+  | (desert !! fst (snd newpos) !! snd (snd newpos)) == "W" =
+      return maxWater'
+  | not (fst newpos) = return currentWater
+  | otherwise = return (currentWater - 1)
 
+checkTreasureFound :: Int -> String -> IO Int
+checkTreasureFound currentTreasures tile =
+  if tile == "T" then return (currentTreasures + 1) else return currentTreasures
 
-draw :: ((), PlayerPos) -> IO()
+pickUpTreasure :: [[String]] -> PlayerPos -> IO [[String]]
+pickUpTreasure desert ppos = do
+  let d = replaceAt ppos desert "D"
+  return d
+
+returnDesert :: [[String]] -> IO [[String]]
+returnDesert = return
+
+draw :: (Bool, PlayerPos) -> IO()
 draw pos = putStrLn ("(" ++ show (fst(snd pos)) ++ "," ++ show(snd(snd pos)) ++ ")")
 
-move :: String -> State PlayerPos ()
+move :: String -> State PlayerPos Bool
 move d = state $ \(row, col) -> case d of
-  "w" -> if row > 0 then ((), (row-1, col)) else ((), (row, col))
-  "s" -> ((), (row+1, col))
-  "d" -> ((), (row, col+1))
-  "a" -> if col > 0 then ((), (row, col-1)) else ((), (row, col))
-  _ -> ((), (row, col))
+  "w" -> if row > 0 then (True, (row-1, col)) else (False, (row, col))
+  "s" -> (True, (row+1, col))
+  "d" -> (True, (row, col+1))
+  "a" -> if col > 0 then (True, (row, col-1)) else (False, (row, col))
+  _ -> (False, (row, col))
