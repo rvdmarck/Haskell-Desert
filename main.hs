@@ -33,25 +33,64 @@ main :: IO ()
 main = do
   let ppos = (0,0)
   --params <- paramsLoop
-  let params = Params 1 7 1 10 30 20 0 0
+  let params = Params 10 80 1 10 50 0 0 0
   let tileList = initTileList params
-  let randomMat = infiniteRandomLists (mkStdGen (initialSeed params))
-  let randomTiles = (map . map) (corresp tileList params) randomMat
+
+  --let randomTiles = map (randomTileLine tileList "A" params . mkStdGen) [(initialSeed params)..]
+
+  let randomTiles = randomDesert (mkStdGen (initialSeed params)) tileList (repeat "A") params
 
   let randomTreasures = infiniteRandomLists (mkStdGen (initialSeed params * 2))
   let randomTreasuresTiles = (map . map) (corresp' params) randomTreasures
   let desert = zipWith (zipWith compareTreasure) randomTiles randomTreasuresTiles
-  gameLoop ppos desert params (maxWater params) 0
+  let desert' = (map . map) initDiscovered desert
+  gameLoop ppos desert' params (maxWater params) 0
+
+initDiscovered :: String -> (Bool, String)
+initDiscovered tile = (False, tile)
+
+randomDesert :: StdGen -> [String] -> [String] -> Params -> [[String]]
+randomDesert gen tileList precTileLine params =
+  let currentTileLine = randomTileLine tileList "A" params precTileLine gen
+    in let (_, newGen) = random gen::(Int, StdGen)
+      in currentTileLine : randomDesert newGen tileList currentTileLine params
 
 
-corresp :: [String] -> Params -> Int -> String
-corresp tileList params proba
+randomTileLine :: [String] -> String -> Params -> [String] -> StdGen -> [String]
+randomTileLine tileList precTile params (x:xs) gen =
+   let (tile, newGen) = randomTile gen tileList precTile params x
+    in tile : randomTileLine tileList tile params xs newGen
+
+randomTile :: StdGen -> [String] -> String -> Params -> String -> (String, StdGen)
+randomTile g tileList precTile params aboveTile =
+  let (proba, gen) = randomR (0,99) g::(Int, StdGen)
+    in (correspTile proba tileList precTile params gen aboveTile, gen)
+
+correspTile :: Int -> [String] -> String -> Params -> StdGen -> String -> String
+correspTile proba tileList precTile params gen aboveTile
+  | tileList !! proba /= "D" = tileList !! proba
+  | otherwise =
+    let (newProba, _) = randomR (0,99) gen
+    in
+    if precTile == "L" || aboveTile == "L"
+      then
+        if newProba < lavalh' params
+          then "L"
+          else "D"
+      else
+        if newProba < lavalh params
+          then "L"
+          else "D"
+
+
+corresp :: [String] -> Int -> String
+corresp tileList proba
   | tileList !! proba /= "D" = tileList !! proba
   | otherwise = "D"
 
 corresp' :: Params -> Int -> String
 corresp' params proba
-  | proba <= treasurelh params = "T"
+  | proba < treasurelh params = "T"
   | otherwise = "D"
 
 compareTreasure :: String -> String -> String
@@ -63,58 +102,46 @@ compareTreasure x y  =
         else "D"
     else x
 
-randomSt :: (RandomGen g, Random a, Num a) => State g a
-randomSt = state (randomR (0,100))
-
-getRandom :: State StdGen Int
-getRandom = randomSt
-
 initTileList :: Params -> [String]
 initTileList params =
-  --let tmpList = replicate (treasurelh params) "T" ++ replicate (waterlh params) "W" ++ replicate (portallh params) "P" ++ replicate (lavalh params) "L" ++ replicate (lavalh' params) "L'"
-  let tmpList = replicate (waterlh params) "W" ++ replicate (portallh params) "P" ++ replicate (lavalh params) "L" ++ replicate (lavalh' params) "L'"
+  let tmpList = replicate (waterlh params) "W" ++ replicate (portallh params) "P"
     in tmpList ++ replicate (100 - length tmpList) "D"
 
-{--
-printMatrix :: Desert -> Int -> Int -> Int -> Int -> IO()
-printMatrix desert startRow endRow startCol endCol = do
-  mapM_ print (makeSubMatrix desert startRow endRow startCol endCol)
-  return()
-
-makeSubMatrix :: Desert -> Int -> Int -> Int -> Int -> [[Int]]
-makeSubMatrix desert startRow endRow startCol endCol
-  | startRow /= endRow = take (endCol - startCol) (drop startCol (desert !! startRow) ) : makeSubMatrix desert (startRow + 1) endRow startCol endCol
-  | startRow == endRow = []
-
---}
-printMatrix' :: [[String]] -> Int -> Int -> Int -> Int -> PlayerPos -> IO()
-printMatrix' desert startRow endRow startCol endCol ppos = do
-  let d = replaceAt ppos desert "Pl"
+printMatrix :: [[(Bool, String)]] -> Int -> Int -> Int -> Int -> PlayerPos -> IO()
+printMatrix desert startRow endRow startCol endCol ppos = do
+  let d = replaceAt ppos desert "\2000"
+  --let los = getLos ppos 2
   if startRow < 0
     then
       if startCol < 0
-        then mapM_ printDesertLine (makeSubMatrix' d (max 0 startRow) (endRow + abs startRow) (max 0 startCol) (endCol + abs startCol))
-        else mapM_ printDesertLine (makeSubMatrix' d (max 0 startRow) (endRow + abs startRow) (max 0 startCol) endCol)
+        then mapM_ printDesertLine (makeSubMatrix d (max 0 startRow) (endRow + abs startRow) (max 0 startCol) (endCol + abs startCol))
+        else mapM_ printDesertLine (makeSubMatrix d (max 0 startRow) (endRow + abs startRow) (max 0 startCol) endCol)
     else
       if startCol < 0
-        then mapM_ printDesertLine (makeSubMatrix' d (max 0 startRow) endRow (max 0 startCol) (endCol + abs startCol))
-        else mapM_ printDesertLine (makeSubMatrix' d (max 0 startRow) endRow (max 0 startCol) endCol)
+        then mapM_ printDesertLine (makeSubMatrix d (max 0 startRow) endRow (max 0 startCol) (endCol + abs startCol))
+        else mapM_ printDesertLine (makeSubMatrix d (max 0 startRow) endRow (max 0 startCol) endCol)
   return()
 
-makeSubMatrix' :: [[String]] -> Int -> Int -> Int -> Int -> [[String]]
-makeSubMatrix' desert startRow endRow startCol endCol
+makeSubMatrix :: [[(Bool, String)]] -> Int -> Int -> Int -> Int -> [[(Bool, String)]]
+makeSubMatrix desert startRow endRow startCol endCol
   | startRow == endRow = []
-  | startRow /= endRow = take (endCol - startCol) (drop startCol (desert !! startRow) ) : makeSubMatrix' desert (startRow + 1) endRow startCol endCol
+  | startRow /= endRow = take (endCol - startCol) (drop startCol (desert !! startRow) ) : makeSubMatrix desert (startRow + 1) endRow startCol endCol
 
-printDesertLine :: [String] -> IO()
-printDesertLine l= print (unwords l)
+printDesertLine :: [(Bool, String)] -> IO()
+printDesertLine l = --print (unwords l)
+  let l' = makePrintableDesertLine l
+  in putStrLn (unwords l')
+
+makePrintableDesertLine :: [(Bool, String)] -> [String]
+makePrintableDesertLine = map (\(draw, val) -> if draw then val else " ")
 
 
-replaceAt :: PlayerPos -> [[String]] -> String -> [[String]]
+replaceAt :: PlayerPos -> [[(Bool, String)]] -> String -> [[(Bool, String)]]
 replaceAt ppos desert val =
   let (x,_:ys) = splitAt (snd ppos) (desert !! fst ppos)
     in let (x',_ : ys') = splitAt (fst ppos) desert
-      in x' ++ [x ++ val : ys] ++ ys'
+      in x' ++ [x ++ (True, val) : ys] ++ ys'
+
 
 paramsLoop :: IO Params
 paramsLoop = do
@@ -153,24 +180,34 @@ paramsLoop = do
 
 
 
-gameLoop :: PlayerPos -> Sdesert -> Params -> Int -> Int -> IO ()
+gameLoop :: PlayerPos -> [[(Bool, String)]] -> Params -> Int -> Int -> IO ()
 gameLoop ppos desert params currentWater currentTreasures = do
-  printMatrix' desert (fst ppos - 5) (fst ppos + 6) (snd ppos - 5) (snd ppos + 6) ppos
+  let los' = getLos ppos (los params)
+  desert' <- uncoverTiles desert los'
+  printMatrix desert' (fst ppos - 5) (fst ppos + 6) (snd ppos - 5) (snd ppos + 6) ppos
+
+  putStr "Actual Position : "
+  drawPlayerPos ppos
+  putStr " , Current Water : "
+  putStr (show currentWater)
+  putStr " , Current Treasures : "
+  putStrLn (show currentTreasures)
+
   putStrLn "w,a,s,d : "
   input <- getLine
   newpos <- doMove input ppos
-  draw newpos
-  currentWater' <- fillOrDecrementWater currentWater desert newpos (maxWater params)
-  endGame <- checkEndGame desert (snd newpos) currentWater'
-  currentTreasures' <- checkTreasureFound currentTreasures (desert !! fst(snd newpos) !! snd (snd newpos))
-  print currentWater'
-  print currentTreasures'
+  --drawPlayerPos newpos
+  currentWater' <- fillOrDecrementWater currentWater desert' newpos (maxWater params)
+  endGame <- checkEndGame desert' (snd newpos) currentWater'
+  currentTreasures' <- checkTreasureFound currentTreasures (snd(desert' !! fst(snd newpos) !! snd (snd newpos)))
+
+
   if currentTreasures' /= currentTreasures
     then do
-      desert' <- pickUpTreasure desert (snd newpos)
-      _ <- return desert'
+      desert'' <- pickUpTreasure desert' (snd newpos)
+      _ <- return desert''
       if endGame == 0
-        then gameLoop (snd newpos) desert' params currentWater' currentTreasures'
+        then gameLoop (snd newpos) desert'' params currentWater' currentTreasures'
         else
           if endGame == 1
             then putStrLn "You're DEAD !"
@@ -180,10 +217,10 @@ gameLoop ppos desert params currentWater currentTreasures = do
 
 
     else do
-      desert' <- returnDesert desert
-      _ <- return desert'
+      desert'' <- returnDesert desert'
+      _ <- return desert''
       if endGame == 0
-        then gameLoop (snd newpos) desert' params currentWater' currentTreasures'
+        then gameLoop (snd newpos) desert'' params currentWater' currentTreasures'
         else
           if endGame == 1
             then putStrLn "You're DEAD !"
@@ -191,20 +228,27 @@ gameLoop ppos desert params currentWater currentTreasures = do
               when  (endGame == 2) $
                 putStrLn "You WON !"
 
-getLos :: PlayerPos -> Int -> [PlayerPos]
-getLos ppos los =
-  let xs = [-los..los]
-    in [(x + fst ppos, y + snd ppos) | x <- xs, y <- xs, abs x + abs y <= los]
 
+getLos :: PlayerPos -> Int -> [PlayerPos]
+getLos ppos llos =
+  let xs = [-llos..llos]
+    in [(x + fst ppos, y + snd ppos) | x <- xs, y <- xs, abs x + abs y <= llos, x + fst ppos >= 0 && y + snd ppos >= 0]
+
+
+uncoverTiles :: [[(Bool, String)]] -> [(Int, Int)] -> IO [[(Bool, String)]]
+uncoverTiles desert [] = return desert
+uncoverTiles desert losPos =
+  let desert' = replaceAt (head losPos) desert (snd(desert!!fst (head losPos)!!snd (head losPos)))
+  in uncoverTiles desert' (drop 1 losPos)
 
 
 doMove :: String -> PlayerPos -> IO(Bool, PlayerPos)
 doMove direction ppos =
   return (runState (move direction) ppos)
 
-fillOrDecrementWater :: Int -> [[String]] -> (Bool, PlayerPos) -> Int -> IO Int
+fillOrDecrementWater :: Int -> [[(Bool, String)]] -> (Bool, PlayerPos) -> Int -> IO Int
 fillOrDecrementWater currentWater desert newpos maxWater'
-  | (desert !! fst (snd newpos) !! snd (snd newpos)) == "W" =
+  | snd(desert !! fst (snd newpos) !! snd (snd newpos)) == "W" =
       return maxWater'
   | not (fst newpos) = return currentWater
   | otherwise = return (currentWater - 1)
@@ -213,22 +257,23 @@ checkTreasureFound :: Int -> String -> IO Int
 checkTreasureFound currentTreasures tile =
   if tile == "T" then return (currentTreasures + 1) else return currentTreasures
 
-checkEndGame :: [[String]] ->  PlayerPos -> Int -> IO Int
+checkEndGame :: [[(Bool, String)]] ->  PlayerPos -> Int -> IO Int
 checkEndGame desert ppos currWater
-  | desert !! fst ppos !! snd ppos `elem` ["L", "L'"] || currWater == 0 = return 1
-  | desert !! fst ppos !! snd ppos == "P" = return 2
+  | snd(desert !! fst ppos !! snd ppos) `elem` ["L", "L'"] || currWater == 0 = return 1
+  | snd(desert !! fst ppos !! snd ppos) == "P" = return 2
   | otherwise = return 0
 
-pickUpTreasure :: [[String]] -> PlayerPos -> IO [[String]]
+pickUpTreasure :: [[(Bool, String)]] -> PlayerPos -> IO [[(Bool, String)]]
 pickUpTreasure desert ppos = do
   let d = replaceAt ppos desert "D"
   return d
 
-returnDesert :: [[String]] -> IO [[String]]
+returnDesert :: [[(Bool, String)]] -> IO [[(Bool, String)]]
 returnDesert = return
 
-draw :: (Bool, PlayerPos) -> IO()
-draw pos = putStrLn ("(" ++ show (fst(snd pos)) ++ "," ++ show(snd(snd pos)) ++ ")")
+drawPlayerPos :: PlayerPos -> IO()
+drawPlayerPos pos = putStr ("(" ++ show (fst pos) ++ "," ++ show(snd pos) ++ ")")
+
 
 move :: String -> State PlayerPos Bool
 move d = state $ \(row, col) -> case d of
