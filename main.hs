@@ -1,3 +1,5 @@
+module Main where
+  
 import System.Environment()
 import System.Random
 import Control.Monad.State
@@ -178,21 +180,36 @@ gameLoop :: PlayerPos -> [[(Bool, String)]] -> Params -> Int -> Int -> IO ()
 gameLoop ppos desert params currentWater currentTreasures = do
   let los' = getLos ppos (los params)
   desert' <- uncoverTiles desert los'
-  printMatrix desert' (fst ppos - 5) (fst ppos + 16) (snd ppos - 5) (snd ppos + 16) ppos
 
+  _ <- printInfos desert' ppos currentWater currentTreasures
+
+  input <- getLine
+  newpos <- doMove input ppos
+  currentWater' <- fillOrDecrementWater currentWater desert' newpos (maxWater params)
+  endGame <- checkEndGame desert' (snd newpos) currentWater'
+  currentTreasures' <- checkTreasureFound currentTreasures (snd(desert' !! fst(snd newpos) !! snd (snd newpos)))
+
+  if currentTreasures' /= currentTreasures
+    then do
+      desert'' <- pickUpTreasure desert' (snd newpos)
+      _ <- return desert''
+      checkContinue endGame newpos desert'' params currentWater' currentTreasures'
+
+
+    else do
+      desert'' <- returnDesert desert'
+      _ <- return desert''
+      checkContinue endGame newpos desert'' params currentWater' currentTreasures'
+
+
+printInfos :: [[(Bool, String)]] -> (Int, Int) -> Int -> Int -> IO ()
+printInfos desert' ppos currentWater currentTreasures = do
+  printMatrix desert' (fst ppos - 5) (fst ppos + 16) (snd ppos - 5) (snd ppos + 16) ppos
   putStrLn "======================================================================"
 
-  let distWater = bfs desert' (ppos, 0) "W" [] [(ppos, 0)] 0
-  putStr "Distance to closest Water is : "
-  print distWater
-
-  let distTreasure = bfs desert' (ppos, 0) "T" [] [(ppos, 0)] 0
-  putStr "Distance to closest Treasure is : "
-  print distTreasure
-
-  let distPortal = bfs desert' (ppos, 0) "P" [] [(ppos, 0)] 0
-  putStr "Distance to closest Portal is : "
-  print distPortal
+  printDist desert' ppos "W" "Distance to closest Water is : "
+  printDist desert' ppos "T" "Distance to closest Treasure is : "
+  printDist desert' ppos "P" "Distance to closest Portal is : "
 
   putStr "Actual Position : "
   drawPlayerPos ppos
@@ -200,45 +217,23 @@ gameLoop ppos desert params currentWater currentTreasures = do
   putStr (show currentWater)
   putStr " , Current Treasures : "
   print currentTreasures
-
-
   putStrLn "======================================================================"
-
-
   putStrLn "w,a,s,d : "
-  input <- getLine
-  newpos <- doMove input ppos
-  --drawPlayerPos newpos
-  currentWater' <- fillOrDecrementWater currentWater desert' newpos (maxWater params)
-  endGame <- checkEndGame desert' (snd newpos) currentWater'
-  currentTreasures' <- checkTreasureFound currentTreasures (snd(desert' !! fst(snd newpos) !! snd (snd newpos)))
 
+printDist :: [[(Bool, String)]] -> PlayerPos -> String -> String -> IO ()
+printDist desert' ppos value message = do
+  let distToValue = bfs desert' (ppos, 0) value [] [(ppos, 0)] 0
+  putStr message
+  print distToValue
 
-  if currentTreasures' /= currentTreasures
-    then do
-      desert'' <- pickUpTreasure desert' (snd newpos)
-      _ <- return desert''
-      if endGame == 0
-        then gameLoop (snd newpos) desert'' params currentWater' currentTreasures'
-        else
-          if endGame == 1
-            then putStrLn "You're DEAD !"
-            else
-              when  (endGame == 2) $
-                putStrLn "You WON !"
+checkContinue :: Int -> (a, PlayerPos) -> [[(Bool, String)]] -> Params -> Int -> Int -> IO ()
+checkContinue endGame newpos desert'' params currentWater' currentTreasures'
+    | endGame == 0 =
+      gameLoop (snd newpos) desert'' params currentWater'
+        currentTreasures'
+    | endGame == 1 = putStrLn "You're DEAD !"
+    | otherwise = when (endGame == 2) $ putStrLn "You WON !"
 
-
-    else do
-      desert'' <- returnDesert desert'
-      _ <- return desert''
-      if endGame == 0
-        then gameLoop (snd newpos) desert'' params currentWater' currentTreasures'
-        else
-          if endGame == 1
-            then putStrLn "You're DEAD !"
-            else
-              when  (endGame == 2) $
-                putStrLn "You WON !"
 
 
 getLos :: PlayerPos -> Int -> [PlayerPos]
