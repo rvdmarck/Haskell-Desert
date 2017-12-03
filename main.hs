@@ -4,11 +4,6 @@ import Control.Monad.State
 import Data.List
 import Text.Read
 
-{--
-data Tile = DESERT | LAVA | TREASURE | WATER
-            deriving (Show, Read)
---}
-
 data Params = Params { los :: Int
                    , maxWater :: Int
                    , initialSeed :: Int
@@ -33,16 +28,14 @@ main :: IO ()
 main = do
   let ppos = (0,0)
   --params <- paramsLoop
-  let params = Params 20 80 33 5 5 0 10 25
+  let params = Params 20 80 33 5 5 10 10 25
   let tileList = initTileList params
-
-  --let randomTiles = map (randomTileLine tileList "A" params . mkStdGen) [(initialSeed params)..]
 
   let genList = infiniteGenerators (mkStdGen 33)
   let randomTiles = randomDesert (mkStdGen (initialSeed params)) tileList (repeat "A") params genList
 
   let randomTreasures = infiniteRandomLists (mkStdGen (initialSeed params * 2))
-  let randomTreasuresTiles = (map . map) (corresp' params) randomTreasures
+  let randomTreasuresTiles = (map . map) (corresp params) randomTreasures
   let desert = zipWith (zipWith compareTreasure) randomTiles randomTreasuresTiles
   let desert' = (map . map) initDiscovered desert
   gameLoop ppos desert' params (maxWater params) 0
@@ -83,13 +76,8 @@ correspTile proba tileList precTile params gen aboveTile
           else "D"
 
 
-corresp :: [String] -> Int -> String
-corresp tileList proba
-  | tileList !! proba /= "D" = tileList !! proba
-  | otherwise = "D"
-
-corresp' :: Params -> Int -> String
-corresp' params proba
+corresp :: Params -> Int -> String
+corresp params proba
   | proba < treasurelh params = "T"
   | otherwise = "D"
 
@@ -192,21 +180,29 @@ gameLoop ppos desert params currentWater currentTreasures = do
   desert' <- uncoverTiles desert los'
   printMatrix desert' (fst ppos - 5) (fst ppos + 16) (snd ppos - 5) (snd ppos + 16) ppos
 
-  putStrLn "================================================================"
+  putStrLn "======================================================================"
 
   let distWater = bfs desert' (ppos, 0) "W" [] [(ppos, 0)] 0
   putStr "Distance to closest Water is : "
-  putStrLn (show distWater)
+  print distWater
+
+  let distTreasure = bfs desert' (ppos, 0) "T" [] [(ppos, 0)] 0
+  putStr "Distance to closest Treasure is : "
+  print distTreasure
+
+  let distPortal = bfs desert' (ppos, 0) "P" [] [(ppos, 0)] 0
+  putStr "Distance to closest Portal is : "
+  print distPortal
 
   putStr "Actual Position : "
   drawPlayerPos ppos
   putStr " , Current Water : "
   putStr (show currentWater)
   putStr " , Current Treasures : "
-  putStrLn (show currentTreasures)
+  print currentTreasures
 
 
-  putStrLn "================================================================"
+  putStrLn "======================================================================"
 
 
   putStrLn "w,a,s,d : "
