@@ -33,7 +33,7 @@ main :: IO ()
 main = do
   let ppos = (0,0)
   --params <- paramsLoop
-  let params = Params 10 80 1 10 50 0 0 0
+  let params = Params 5 80 1 10 20 0 0 0
   let tileList = initTileList params
 
   --let randomTiles = map (randomTileLine tileList "A" params . mkStdGen) [(initialSeed params)..]
@@ -133,7 +133,13 @@ printDesertLine l = --print (unwords l)
   in putStrLn (unwords l')
 
 makePrintableDesertLine :: [(Bool, String)] -> [String]
-makePrintableDesertLine = map (\(draw, val) -> if draw then val else " ")
+makePrintableDesertLine = map (\(draw, val) ->
+  if draw
+    then
+      if val == "T"
+        then "D"
+        else val
+    else " ")
 
 
 replaceAt :: PlayerPos -> [[(Bool, String)]] -> String -> [[(Bool, String)]]
@@ -185,6 +191,10 @@ gameLoop ppos desert params currentWater currentTreasures = do
   let los' = getLos ppos (los params)
   desert' <- uncoverTiles desert los'
   printMatrix desert' (fst ppos - 5) (fst ppos + 6) (snd ppos - 5) (snd ppos + 6) ppos
+
+  let distWater = bfs desert' (ppos, 0) "W" [] [(ppos, 0)]
+  putStr "Distance is : "
+  putStrLn (show distWater)
 
   putStr "Actual Position : "
   drawPlayerPos ppos
@@ -282,3 +292,40 @@ move d = state $ \(row, col) -> case d of
   "d" -> (True, (row, col+1))
   "a" -> if col > 0 then (True, (row, col-1)) else (False, (row, col))
   _ -> (False, (row, col))
+
+
+bfs :: [[(Bool, String)]] -> (PlayerPos, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
+bfs desert (ppos, dist) value queue marked =
+  let adj = getAdj desert (ppos, dist) marked
+   in let result = checkTermination desert adj value
+   in
+   if fst result
+     then snd result
+     else
+       if null queue
+         then
+           let queue' = [] ++ adj
+            in bfs desert (head queue') value queue' (marked ++ [head queue'])
+          else
+            let queue' = tail queue ++ adj
+              in bfs desert (head queue') value queue' (marked ++ [head queue'])
+
+
+getAdj :: [[(Bool, String)]] -> (PlayerPos, Int) -> [(PlayerPos, Int)] -> [(PlayerPos, Int)]
+getAdj desert (pos, dist) marked=
+  [((row, col), dist + 1) |
+  row <- [fst pos + 1 .. fst pos - 1],
+  col <- [snd pos + 1 .. snd pos - 1],
+  abs((row + col) - uncurry (+) pos) == 1,
+  row >= 0 && col >= 0,
+  snd (desert!!row!!col) /= "L", (row,col) `notElem` map fst marked]
+
+
+checkTermination :: [[(Bool, String)]] -> [(PlayerPos, Int)] -> String -> (Bool, Int)
+checkTermination desert adj value =
+  let x = map (\((row, col), dist) -> (snd(desert!!row!!col) == value, dist)) adj
+  in if True `elem` map fst x
+    then
+      let y = filter fst x
+      in head y
+      else (False, 0)
