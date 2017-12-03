@@ -33,12 +33,13 @@ main :: IO ()
 main = do
   let ppos = (0,0)
   --params <- paramsLoop
-  let params = Params 5 80 1 10 20 0 0 0
+  let params = Params 20 80 33 5 5 0 10 25
   let tileList = initTileList params
 
   --let randomTiles = map (randomTileLine tileList "A" params . mkStdGen) [(initialSeed params)..]
 
-  let randomTiles = randomDesert (mkStdGen (initialSeed params)) tileList (repeat "A") params
+  let genList = infiniteGenerators (mkStdGen 33)
+  let randomTiles = randomDesert (mkStdGen (initialSeed params)) tileList (repeat "A") params genList
 
   let randomTreasures = infiniteRandomLists (mkStdGen (initialSeed params * 2))
   let randomTreasuresTiles = (map . map) (corresp' params) randomTreasures
@@ -49,22 +50,21 @@ main = do
 initDiscovered :: String -> (Bool, String)
 initDiscovered tile = (False, tile)
 
-randomDesert :: StdGen -> [String] -> [String] -> Params -> [[String]]
-randomDesert gen tileList precTileLine params =
-  let currentTileLine = randomTileLine tileList "A" params precTileLine gen
-    in let (_, newGen) = random gen::(Int, StdGen)
-      in currentTileLine : randomDesert newGen tileList currentTileLine params
+randomDesert ::StdGen -> [String] -> [String] -> Params -> [StdGen] -> [[String]]
+randomDesert gen tileList precTileLine params (genListHead:genListTail) =
+  let currentTileLine = randomTileLine gen tileList "A" params precTileLine
+    in currentTileLine : randomDesert genListHead tileList currentTileLine params genListTail
 
 
-randomTileLine :: [String] -> String -> Params -> [String] -> StdGen -> [String]
-randomTileLine tileList precTile params (x:xs) gen =
+randomTileLine :: StdGen -> [String] -> String -> Params -> [String] -> [String]
+randomTileLine gen tileList precTile params (x:xs) =
    let (tile, newGen) = randomTile gen tileList precTile params x
-    in tile : randomTileLine tileList tile params xs newGen
+    in tile : randomTileLine newGen tileList tile params xs
 
 randomTile :: StdGen -> [String] -> String -> Params -> String -> (String, StdGen)
-randomTile g tileList precTile params aboveTile =
-  let (proba, gen) = randomR (0,99) g::(Int, StdGen)
-    in (correspTile proba tileList precTile params gen aboveTile, gen)
+randomTile gen tileList precTile params aboveTile =
+  let (proba, newGen) = randomR (0,99) gen::(Int, StdGen)
+    in (correspTile proba tileList precTile params newGen aboveTile, newGen)
 
 correspTile :: Int -> [String] -> String -> Params -> StdGen -> String -> String
 correspTile proba tileList precTile params gen aboveTile
@@ -190,10 +190,12 @@ gameLoop :: PlayerPos -> [[(Bool, String)]] -> Params -> Int -> Int -> IO ()
 gameLoop ppos desert params currentWater currentTreasures = do
   let los' = getLos ppos (los params)
   desert' <- uncoverTiles desert los'
-  printMatrix desert' (fst ppos - 5) (fst ppos + 6) (snd ppos - 5) (snd ppos + 6) ppos
+  printMatrix desert' (fst ppos - 5) (fst ppos + 16) (snd ppos - 5) (snd ppos + 16) ppos
 
-  let distWater = bfs desert' (ppos, 0) "W" [] [(ppos, 0)]
-  putStr "Distance is : "
+  putStrLn "================================================================"
+
+  let distWater = bfs desert' (ppos, 0) "W" [] [(ppos, 0)] 0
+  putStr "Distance to closest Water is : "
   putStrLn (show distWater)
 
   putStr "Actual Position : "
@@ -202,6 +204,10 @@ gameLoop ppos desert params currentWater currentTreasures = do
   putStr (show currentWater)
   putStr " , Current Treasures : "
   putStrLn (show currentTreasures)
+
+
+  putStrLn "================================================================"
+
 
   putStrLn "w,a,s,d : "
   input <- getLine
@@ -294,31 +300,39 @@ move d = state $ \(row, col) -> case d of
   _ -> (False, (row, col))
 
 
-bfs :: [[(Bool, String)]] -> (PlayerPos, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
-bfs desert (ppos, dist) value queue marked =
+bfs :: [[(Bool, String)]] -> (PlayerPos, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int -> Int
+bfs desert (ppos, dist) value queue marked cnt =
   let adj = getAdj desert (ppos, dist) marked
    in let result = checkTermination desert adj value
-   in
-   if fst result
-     then snd result
-     else
-       if null queue
-         then
-           let queue' = [] ++ adj
-            in bfs desert (head queue') value queue' (marked ++ [head queue'])
-          else
-            let queue' = tail queue ++ adj
-              in bfs desert (head queue') value queue' (marked ++ [head queue'])
+   in if fst result
+      then snd result
+      else
+        if null queue
+        then
+          let queue' = [] ++ adj
+            in
+            if null queue'
+              then (-1)
+              else
+                bfs desert (head queue') value queue' (marked ++ [head queue']) (cnt + 1)
+        else
+          let queue' = tail queue ++ adj
+            in
+            if null queue'
+              then (-1)
+              else
+                bfs desert (head queue') value queue' (marked ++ [head queue']) (cnt + 1)
 
 
 getAdj :: [[(Bool, String)]] -> (PlayerPos, Int) -> [(PlayerPos, Int)] -> [(PlayerPos, Int)]
 getAdj desert (pos, dist) marked=
   [((row, col), dist + 1) |
-  row <- [fst pos + 1 .. fst pos - 1],
-  col <- [snd pos + 1 .. snd pos - 1],
+  row <- [fst pos - 1 .. fst pos + 1],
+  col <- [snd pos - 1 .. snd pos + 1],
   abs((row + col) - uncurry (+) pos) == 1,
   row >= 0 && col >= 0,
-  snd (desert!!row!!col) /= "L", (row,col) `notElem` map fst marked]
+  snd (desert!!row!!col) /= "L",
+  (row,col) `notElem` map fst marked]
 
 
 checkTermination :: [[(Bool, String)]] -> [(PlayerPos, Int)] -> String -> (Bool, Int)
