@@ -61,7 +61,7 @@ makePrintableDesertLine desertLine uncoveredTilesCoord (row, startCol) startCol'
 
 makePrintableElement :: [String] -> [(Int, Int)] -> (Int, Int) -> Int -> String
 makePrintableElement desertLine uncoveredTilesCoord currCoord startCol
-  | currCoord `elem` uncoveredTilesCoord = desertLine !! (snd currCoord - startCol)
+  | currCoord `elem` uncoveredTilesCoord = if desertLine !! (snd currCoord - startCol) == treasureTile then desertTile else desertLine !! (snd currCoord - startCol)
   | otherwise = " "
 
 
