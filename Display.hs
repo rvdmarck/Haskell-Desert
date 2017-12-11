@@ -51,17 +51,17 @@ makeSubMatrix desert startRow endRow startCol endCol
 
 printDesertLine :: [(Int, Int)] -> Int -> Int -> Int -> [String] -> IO()
 printDesertLine uncoveredTilesCoord row startCol endCol l = 
-  let l' = makePrintableDesertLine l uncoveredTilesCoord (row, startCol) endCol
+  let l' = makePrintableDesertLine l uncoveredTilesCoord (row, startCol) startCol endCol
   in putStrLn (unwords l')
 
-makePrintableDesertLine :: [String] -> [(Int, Int)] -> (Int, Int) -> Int -> [String] 
-makePrintableDesertLine desertLine uncoveredTilesCoord (row, startCol) endCol
+makePrintableDesertLine :: [String] -> [(Int, Int)] -> (Int, Int) -> Int -> Int -> [String] 
+makePrintableDesertLine desertLine uncoveredTilesCoord (row, startCol) startCol' endCol
   | startCol == endCol = []
-  | otherwise =  makePrintableElement desertLine uncoveredTilesCoord (row, startCol) : makePrintableDesertLine desertLine uncoveredTilesCoord (row, startCol + 1) endCol
+  | otherwise =  makePrintableElement desertLine uncoveredTilesCoord (row, startCol) startCol' : makePrintableDesertLine desertLine uncoveredTilesCoord (row, startCol + 1) startCol' endCol
 
-makePrintableElement :: [String] -> [(Int, Int)] -> (Int, Int) -> String
-makePrintableElement desertLine uncoveredTilesCoord currCoord
-  | currCoord `elem` uncoveredTilesCoord = desertLine !! snd currCoord
+makePrintableElement :: [String] -> [(Int, Int)] -> (Int, Int) -> Int -> String
+makePrintableElement desertLine uncoveredTilesCoord currCoord startCol
+  | currCoord `elem` uncoveredTilesCoord = desertLine !! (snd currCoord - startCol)
   | otherwise = " "
 
 

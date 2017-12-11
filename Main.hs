@@ -19,7 +19,7 @@ type Coordinate = (Int, Int)
 main :: IO ()
 main = do
   let ppos = (0,0)
-  let params = Params 3 50 12 20 25 15 0 0
+  let params = Params 3 50 12 10 25 15 0 0
   --params <- paramsLoop
   let tileList = initTileList params
   let genList = infiniteGenerators (mkStdGen 33)
