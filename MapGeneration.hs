@@ -25,8 +25,6 @@ data Params = Params { los :: Int
                    } deriving (Show)
 
 type Desert = [[String]]
-type Coordinate = (Int, Int)
-
 
 --Generate infinite list of generators
 infiniteGenerators :: (RandomGen g) => g -> [g]

@@ -14,25 +14,24 @@ import Control.Monad.State
 import Strings
 
 
-type PlayerPos = (Int, Int)
 type Coordinate = (Int, Int)
 type Desert = [[String]]
 
 -- Get the position of the tiles contained in the given Line of Sight
-getLos :: PlayerPos -> Int -> [(Int, Int)]
+getLos :: Coordinate -> Int -> [Coordinate]
 getLos ppos llos =
   let xs = [-llos..llos]
     in [(x + fst ppos, y + snd ppos) | x <- xs, y <- xs, abs x + abs y <= llos, x + fst ppos >= 0 && y + snd ppos >= 0]
 
-addUncoveredTiles :: [(Int, Int)] -> [(Int, Int)] -> [(Int, Int)]
+addUncoveredTiles :: [Coordinate] -> [Coordinate] -> [Coordinate]
 addUncoveredTiles losCoordinates uncoveredTiles = losCoordinates ++ uncoveredTiles
 
 
-doMove :: String -> PlayerPos -> IO(Bool, PlayerPos)
+doMove :: String -> Coordinate -> IO(Bool, Coordinate)
 doMove direction ppos =
   return (runState (move direction) ppos)
 
-fillOrDecrementWater :: Int -> Desert -> (Bool, PlayerPos) -> Int -> IO Int
+fillOrDecrementWater :: Int -> Desert -> (Bool, Coordinate) -> Int -> IO Int
 fillOrDecrementWater currentWater desert newpos maxWater'
   | desert !! fst (snd newpos) !! snd (snd newpos) == waterTile =
       return maxWater'
@@ -44,7 +43,7 @@ checkTreasureFound currentTreasures tile =
   if tile == treasureTile then return (currentTreasures + 1) else return currentTreasures
 
 -- replace the tile at the given position
-pickUpTreasure :: Desert -> PlayerPos -> IO Desert
+pickUpTreasure :: Desert -> Coordinate -> IO Desert
 pickUpTreasure desert ppos = do
   let d = replaceAt ppos desert desertTile
   return d
@@ -52,13 +51,13 @@ pickUpTreasure desert ppos = do
 returnDesert :: Desert -> IO Desert
 returnDesert = return
 
-replaceAt :: PlayerPos -> Desert -> String -> Desert
+replaceAt :: Coordinate -> Desert -> String -> Desert
 replaceAt ppos desert val =
   let (x,_:ys) = splitAt (snd ppos) (desert !! fst ppos)
     in let (x',_ : ys') = splitAt (fst ppos) desert
       in x' ++ [x ++ val : ys] ++ ys'
 
-move :: String -> State PlayerPos Bool
+move :: String -> State Coordinate Bool
 move d = state $ \(row, col) -> case d of
   "w" -> if row > 0 then (True, (row-1, col)) else (False, (row, col))
   "s" -> (True, (row+1, col))

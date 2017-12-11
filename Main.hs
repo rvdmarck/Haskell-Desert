@@ -13,13 +13,12 @@ import Desert
 
 
 type Desert = [[String]]
-type PlayerPos = (Int, Int)
 type Coordinate = (Int, Int)
 
 main :: IO ()
 main = do
   let ppos = (0,0)
-  let params = Params 3 50 12 10 25 15 0 0
+  let params = Params 3 50 12 10 25 15 15 20
   --params <- paramsLoop
   let tileList = initTileList params
   let genList = infiniteGenerators (mkStdGen 33)
@@ -30,7 +29,7 @@ main = do
   gameLoop ppos desert params (maxWater params) 0 []
 
 
-gameLoop :: PlayerPos -> Desert -> Params -> Int -> Int -> [(Int, Int)] -> IO ()
+gameLoop :: Coordinate -> Desert -> Params -> Int -> Int -> [Coordinate] -> IO ()
 gameLoop ppos desert params currentWater currentTreasures undiscoveredTilesCoord = do
   let los' = getLos ppos (los params)
   let undiscoveredTilesCoord' = undiscoveredTilesCoord ++ los'
@@ -53,7 +52,7 @@ gameLoop ppos desert params currentWater currentTreasures undiscoveredTilesCoord
       checkContinue endGame newpos desert' params currentWater' currentTreasures' undiscoveredTilesCoord'
 
 
-checkContinue :: Int -> (a, PlayerPos) -> Desert -> Params -> Int -> Int -> [(Int, Int)] -> IO ()
+checkContinue :: Int -> (a, Coordinate) -> Desert -> Params -> Int -> Int -> [Coordinate] -> IO ()
 checkContinue endGame newpos desert' params currentWater' currentTreasures' undiscoveredTilesCoord
     | endGame == 0 =
       gameLoop (snd newpos) desert' params currentWater'
@@ -62,7 +61,7 @@ checkContinue endGame newpos desert' params currentWater' currentTreasures' undi
     | otherwise = when (endGame == 2) $ putStrLn "You WON !"
 
 
-checkEndGame :: Desert ->  PlayerPos -> Int -> IO Int
+checkEndGame :: Desert ->  Coordinate -> Int -> IO Int
 checkEndGame desert ppos currWater
   | desert !! fst ppos !! snd ppos `elem` [lavaTile, "L'"] || currWater == 0 = return 1
   | desert !! fst ppos !! snd ppos == portalTile = return 2
