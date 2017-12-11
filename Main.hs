@@ -11,60 +11,61 @@ import MapGeneration
 import Display
 import Desert
 
-type Desert = [[Int]]
-type Sdesert = [[String]]
+
+type Desert = [[String]]
 type PlayerPos = (Int, Int)
+type Coordinate = (Int, Int)
 
 main :: IO ()
 main = do
   let ppos = (0,0)
-  params <- paramsLoop
+  let params = Params 3 50 12 20 25 15 0 0
+  --params <- paramsLoop
   let tileList = initTileList params
   let genList = infiniteGenerators (mkStdGen 33)
   let randomTiles = randomDesert (mkStdGen (initialSeed params)) tileList (repeat "A") params genList
   let randomTreasures = infiniteRandomLists (mkStdGen (initialSeed params * 2))
   let randomTreasuresTiles = (map . map) (corresp params) randomTreasures
   let desert = zipWith (zipWith compareTreasure) randomTiles randomTreasuresTiles
-  let desert' = (map . map) initDiscovered desert
-  gameLoop ppos desert' params (maxWater params) 0
+  gameLoop ppos desert params (maxWater params) 0 []
 
 
-gameLoop :: PlayerPos -> [[(Bool, String)]] -> Params -> Int -> Int -> IO ()
-gameLoop ppos desert params currentWater currentTreasures = do
+gameLoop :: PlayerPos -> Desert -> Params -> Int -> Int -> [(Int, Int)] -> IO ()
+gameLoop ppos desert params currentWater currentTreasures undiscoveredTilesCoord = do
   let los' = getLos ppos (los params)
-  desert' <- uncoverTiles desert los'
-  _ <- printInfos desert' ppos currentWater currentTreasures
+  let undiscoveredTilesCoord' = undiscoveredTilesCoord ++ los'
+  _ <- printInfos desert ppos currentWater currentTreasures undiscoveredTilesCoord'
   input <- getLine
   newpos <- doMove input ppos
-  currentWater' <- fillOrDecrementWater currentWater desert' newpos (maxWater params)
-  endGame <- checkEndGame desert' (snd newpos) currentWater'
-  currentTreasures' <- checkTreasureFound currentTreasures (snd(desert' !! fst(snd newpos) !! snd (snd newpos)))
+  currentWater' <- fillOrDecrementWater currentWater desert newpos (maxWater params)
+  endGame <- checkEndGame desert (snd newpos) currentWater'
+  currentTreasures' <- checkTreasureFound currentTreasures (desert !! fst(snd newpos) !! snd (snd newpos))
 
   if currentTreasures' /= currentTreasures
     then do
-      desert'' <- pickUpTreasure desert' (snd newpos)
-      _ <- return desert''
-      checkContinue endGame newpos desert'' params currentWater' currentTreasures'
+      desert' <- pickUpTreasure desert (snd newpos)
+      _ <- return desert'
+      checkContinue endGame newpos desert' params currentWater' currentTreasures' undiscoveredTilesCoord'
 
     else do
-      desert'' <- returnDesert desert'
-      _ <- return desert''
-      checkContinue endGame newpos desert'' params currentWater' currentTreasures'
+      desert' <- returnDesert desert
+      _ <- return desert'
+      checkContinue endGame newpos desert' params currentWater' currentTreasures' undiscoveredTilesCoord'
 
 
-checkContinue :: Int -> (a, PlayerPos) -> [[(Bool, String)]] -> Params -> Int -> Int -> IO ()
-checkContinue endGame newpos desert'' params currentWater' currentTreasures'
+checkContinue :: Int -> (a, PlayerPos) -> Desert -> Params -> Int -> Int -> [(Int, Int)] -> IO ()
+checkContinue endGame newpos desert' params currentWater' currentTreasures' undiscoveredTilesCoord
     | endGame == 0 =
-      gameLoop (snd newpos) desert'' params currentWater'
-        currentTreasures'
+      gameLoop (snd newpos) desert' params currentWater'
+        currentTreasures' undiscoveredTilesCoord
     | endGame == 1 = putStrLn "You're DEAD !"
     | otherwise = when (endGame == 2) $ putStrLn "You WON !"
 
 
-checkEndGame :: [[(Bool, String)]] ->  PlayerPos -> Int -> IO Int
+checkEndGame :: Desert ->  PlayerPos -> Int -> IO Int
 checkEndGame desert ppos currWater
-  | snd(desert !! fst ppos !! snd ppos) `elem` [lavaTile, "L'"] || currWater == 0 = return 1
-  | snd(desert !! fst ppos !! snd ppos) == portalTile = return 2
+  | desert !! fst ppos !! snd ppos `elem` [lavaTile, "L'"] || currWater == 0 = return 1
+  | desert !! fst ppos !! snd ppos == portalTile = return 2
   | otherwise = return 0
 
 paramsLoop :: IO Params

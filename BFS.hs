@@ -3,18 +3,21 @@ module BFS
   bfs
 , bfsStrict
 ) where
+
 import Strings
+
 type PlayerPos = (Int, Int)
+type Desert = [[String]]
 
 -- Module performing Breadth First Search Algorithm
 
-bfs :: [[(Bool, String)]] -> (PlayerPos, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
+bfs :: Desert -> (PlayerPos, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
 bfs desert (ppos, dist) value queue marked =
   let adj = getAdj desert (ppos, dist) marked
    in let result = checkTermination desert adj value
    in subbfs desert result value queue marked adj
 
-subbfs :: [[(Bool, String)]] -> (Bool, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
+subbfs :: Desert -> (Bool, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
 subbfs desert result value queue marked adj
     | fst result = snd result
     | null queue =
@@ -27,20 +30,20 @@ subbfs desert result value queue marked adj
           bfs desert (head queue') value queue' (marked ++ [head queue'])
 
 -- Get the top, right, bottom and left positions of a given position wrt there is no negative coordinate and the positions doesn't contain lava
-getAdj :: [[(Bool, String)]] -> (PlayerPos, Int) -> [(PlayerPos, Int)] -> [(PlayerPos, Int)]
+getAdj :: Desert -> (PlayerPos, Int) -> [(PlayerPos, Int)] -> [(PlayerPos, Int)]
 getAdj desert (pos, dist) marked =
   [((row, col), dist + 1) |
   row <- [fst pos - 1 .. fst pos + 1],
   col <- [snd pos - 1 .. snd pos + 1],
   abs((row + col) - uncurry (+) pos) == 1,
   row >= 0 && col >= 0,
-  snd (desert!!row!!col) /= lavaTile,
+  desert!!row!!col /= lavaTile,
   (row,col) `notElem` map fst marked]
 
 -- If an adjacent tile contain the target value, we stop
-checkTermination :: [[(Bool, String)]] -> [(PlayerPos, Int)] -> String -> (Bool, Int)
+checkTermination :: Desert -> [(PlayerPos, Int)] -> String -> (Bool, Int)
 checkTermination desert adj value =
-  let x = map (\((row, col), dist) -> (snd(desert!!row!!col) == value, dist)) adj
+  let x = map (\((row, col), dist) -> (desert!!row!!col == value, dist)) adj
   in if True `elem` map fst x
     then
       let y = filter fst x
@@ -49,13 +52,13 @@ checkTermination desert adj value =
 
 
 -- Breadth First Search using `seq` operator
-bfsStrict :: [[(Bool, String)]] -> (PlayerPos, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
+bfsStrict :: Desert -> (PlayerPos, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
 bfsStrict desert (ppos, dist) value queue marked =
   let adj = getAdj desert (ppos, dist) marked
    in let result = checkTermination desert adj value
    in desert `seq` subbfsStrict desert result value queue marked adj
 
-subbfsStrict :: [[(Bool, String)]] -> (Bool, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
+subbfsStrict :: Desert -> (Bool, Int) -> String -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> [(PlayerPos, Int)] -> Int
 subbfsStrict desert result value queue marked adj
     | fst result = snd result
     | null queue =

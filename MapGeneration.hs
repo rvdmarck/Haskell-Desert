@@ -2,7 +2,6 @@ module MapGeneration
 (
   infiniteGenerators
 , infiniteRandomLists
-, initDiscovered
 , randomDesert
 , corresp
 , compareTreasure
@@ -25,6 +24,9 @@ data Params = Params { los :: Int
                    , lavalh' :: Int
                    } deriving (Show)
 
+type Desert = [[String]]
+type Coordinate = (Int, Int)
+
 
 --Generate infinite list of generators
 infiniteGenerators :: (RandomGen g) => g -> [g]
@@ -34,12 +36,8 @@ infiniteGenerators = L.unfoldr (Just . split)
 infiniteRandomLists :: (RandomGen g) => g -> [[Int]]
 infiniteRandomLists = map (randomRs (0,99)) . infiniteGenerators
 
--- init all tiles with a boolean that tells whether the tile has benn discovered or not
-initDiscovered :: String -> (Bool, String)
-initDiscovered tile = (False, tile)
-
 -- Generate a desert filled with random tiles according to the given parameters
-randomDesert ::StdGen -> [String] -> [String] -> Params -> [StdGen] -> [[String]]
+randomDesert ::StdGen -> [String] -> [String] -> Params -> [StdGen] -> Desert
 randomDesert gen tileList precTileLine params (genListHead:genListTail) =
   let currentTileLine = randomTileLine gen tileList "A" params precTileLine
     in currentTileLine : randomDesert genListHead tileList currentTileLine params genListTail
