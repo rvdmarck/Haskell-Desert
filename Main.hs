@@ -13,6 +13,7 @@ import qualified Data.Vector    as Vec
 import Strings
 import MapGeneration
 import Display
+import DisplayGUI
 import Desert
 
 type Vec        = Vec.Vector
@@ -20,16 +21,11 @@ type Vec        = Vec.Vector
 type Desert = [[String]]
 type Coordinate = (Int, Int)
 
-windowWidth :: Int
-windowWidth = fst computeWindowSize
-windowHeight :: Int
-windowHeight = snd computeWindowSize
-
 
 main :: IO ()
 main = do
   let ppos = (0,0)
-  let params = Params 3 50 12 10 25 15 15 20
+  let params = Params 1 50 12 10 25 15 15 20
   --params <- paramsLoop
   let tileList = initTileList params
   let genList = infiniteGenerators (mkStdGen 33)
@@ -37,9 +33,54 @@ main = do
   let randomTreasures = infiniteRandomLists (mkStdGen (initialSeed params * 2))
   let randomTreasuresTiles = (map . map) (corresp params) randomTreasures
   let desert = zipWith (zipWith compareTreasure) randomTiles randomTreasuresTiles
-  play    (InWindow "Desert Game" (windowWidth,windowHeight) (500,500)) white 100 desert makePicture handleEvent stepWorld
+  play    (InWindow "Desert Game" (windowWidth,windowHeight+100) (600,200)) 
+           white 100
+           (Gamestate desert params ppos ppos (maxWater params) 0 0 (getLos ppos (los params)) (getLos ppos (los params))) 
+           makePicture 
+           handleEvent 
+           stepWorld
 
   --gameLoop ppos desert params (maxWater params) 0 []
+
+
+handleEvent :: Event -> Gamestate -> Gamestate
+handleEvent event gamestate 
+  | EventKey (Graphics.Gloss.Interface.Pure.Game.Char 'd') Down _ _ <- event
+  = gamestate {playerPos = (fst(playerPos gamestate), snd(playerPos gamestate) + 1)}
+
+  | EventKey (Graphics.Gloss.Interface.Pure.Game.Char 's') Down _ _ <- event
+  = gamestate {playerPos = (fst(playerPos gamestate) + 1, snd(playerPos gamestate))}
+
+  | EventKey (Graphics.Gloss.Interface.Pure.Game.Char 'w') Down _ _ <- event
+  = if fst(playerPos gamestate) > 0
+      then gamestate {playerPos = (fst(playerPos gamestate) - 1, snd(playerPos gamestate))}
+      else gamestate
+
+  | EventKey (Graphics.Gloss.Interface.Pure.Game.Char 'a') Down _ _ <- event
+  = if snd(playerPos gamestate) > 0
+      then gamestate {playerPos = (fst(playerPos gamestate), snd(playerPos gamestate) - 1)}
+      else gamestate
+
+  | otherwise
+  = gamestate
+
+
+stepWorld :: Float -> Gamestate -> Gamestate
+stepWorld _ gamestate 
+  = if oldPlayerPos gamestate /= playerPos gamestate
+    then let newLos = getLos (playerPos gamestate) (los (parameters gamestate) )
+         in let g = gamestate {oldPlayerPos = playerPos gamestate
+                  , losCoords = newLos
+                  , discoveredTiles = discoveredTiles gamestate ++ newLos
+                  , currentWater = fillOrDecrementWater2 (currentWater gamestate) (desert gamestate) (True, playerPos gamestate) (maxWater (parameters gamestate))
+                  , currentTreasures = checkTreasureFound2 (currentTreasures gamestate) (desert gamestate !! fst(playerPos gamestate) !! snd(playerPos gamestate))}
+            in if currentTreasures gamestate /= currentTreasures g
+                then g{desert = replaceAt (playerPos g) (desert g) desertTile}
+                else g
+    else gamestate
+
+
+
 
 
 gameLoop :: Coordinate -> Desert -> Params -> Int -> Int -> [Coordinate] -> IO ()
@@ -124,81 +165,3 @@ paramsLoop = do
 
 
 
-nrLinesToDraw = 20
-nrColsToDraw = 20
-tileSize = 10
-tileSpace = 1
-
-makePicture :: Desert -> Picture
-makePicture desert = 
-  let offsetX = - fromIntegral windowWidth  / 2
-      offsetY = fromIntegral windowHeight / 2  - (fromIntegral tileSize +  fromIntegral tileSpace) +  fromIntegral tileSpace
-      subDesert = take nrLinesToDraw (map (take nrColsToDraw) desert)
-      cSubDesert = concat subDesert
-      vecDesert = Vec.fromList cSubDesert
-  in  Translate offsetX offsetY
-        $ Pictures 
-        $ Vec.toList 
-        $ Vec.imap (drawTile vecDesert) vecDesert    
-
-
-drawTile :: Vec.Vector String -> Int -> String -> Picture
-drawTile desert index tile
-  = let  cs      = tileSize
-         cp      = tileSpace
-
-         (x, y)  = coordOfIndex index
-         fx      = fromIntegral x * (cs + cp) + 1
-         fy      = fromIntegral y * (cs + cp) + 1
-
-    in   pictureOfTile
-                tileSize
-                fx
-                (-fy)
-                tile
-              
-
-coordOfIndex :: Int -> (Int, Int)
-coordOfIndex i            
-        = ( i `mod` nrColsToDraw
-          , i `div` nrColsToDraw)
-
-
-pictureOfTile :: Int -> Int -> Int -> String -> Picture
-pictureOfTile tileSize posX posY tile
-  = case tile of
-         "D"    -> Color (makeColor 1.0 0.5 0.0 1.0)  (tileShape tileSize posX posY)
-         "L"      -> Color (makeColor 1.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
-         "W"     -> Color (makeColor 0.0 0.0 1.0 1.0)  (tileShape tileSize posX posY)
-         "P"    -> Color (makeColor 0.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
-         "T"  -> Color (makeColor 1.0 0.8 0.0 1.0)  (tileShape tileSize posX posY)
-
-
--- | The basic shape of a tile.
-tileShape :: Int -> Int -> Int -> Picture
-tileShape tileSize posXi posYi
- = let  cs      = fromIntegral tileSize
-        posX    = fromIntegral posXi
-        posY    = fromIntegral posYi
-        x1      = posX
-        x2      = posX + cs
-        y1      = posY 
-        y2      = posY + cs
-   in   Polygon [(x1, y1), (x1, y2), (x2, y2), (x2, y1)]
-
-
--- | Get the size of the window needed to display a world.
-computeWindowSize :: (Int, Int)
-computeWindowSize
- = let  tilePad         = tileSize + tileSpace
-        height          = tilePad * nrLinesToDraw + tileSpace
-        width           = tilePad * nrColsToDraw + tileSpace
-   in   (width, height)
-
-
-handleEvent :: Event -> Desert -> Desert
-handleEvent _ = id
-
-
-stepWorld :: Float -> Desert -> Desert
-stepWorld _ = id
