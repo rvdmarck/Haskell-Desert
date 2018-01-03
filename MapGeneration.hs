@@ -22,6 +22,7 @@ data Params = Params { los :: Int
                    , portallh :: Int
                    , lavalh :: Int
                    , lavalh' :: Int
+                   , wormSpawn :: Int
                    } deriving (Show)
 
 type Desert = [[String]]

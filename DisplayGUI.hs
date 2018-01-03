@@ -76,6 +76,7 @@ pictureOfTile gamestate x y tileSize posX posY tile
          "P"   -> Color (makeColor 0.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
          "T"   -> Color (makeColor 1.0 0.8 0.0 1.0)  (tileShape tileSize posX posY)
          "Pl"  -> Color (makeColor 1.0 1.0 1.0 1.0)  (tileShape tileSize posX posY)
+         "M"   -> Color (makeColor 0.0 1.0 0.0 1.0)  (tileShape tileSize posX posY)
       else Color (makeColor 0.5 0.5 0.5 1.0)  (tileShape tileSize posX posY)
 
 

@@ -14,8 +14,9 @@ module Desert
 )where
 
 import Control.Monad.State
-import Strings
+import qualified Data.Set as Set
 
+import Strings
 import MapGeneration
 
 
@@ -23,15 +24,15 @@ type Coordinate = (Int, Int)
 type Desert = [[String]]
 
 data Gamestate = Gamestate
-                 { desert :: Desert
-                 , parameters :: Params
-                 , playerPos :: Coordinate
-                 , oldPlayerPos :: Coordinate
-                 , currentWater :: Int
-                 , currentTreasures :: Int
-                 , oldCurrentTreasures :: Int
-                 , losCoords :: [Coordinate]
-                 , discoveredTiles :: [Coordinate] }
+                 { desert              :: Desert
+                 , parameters          :: Params
+                 , playerPos           :: Coordinate
+                 , oldPlayerPos        :: Coordinate
+                 , currentWater        :: Int
+                 , currentTreasures    :: Int
+                 , losCoords           :: [Coordinate]
+                 , discoveredTiles     :: Set.Set Coordinate
+                 , worms               :: [[Coordinate]] }
 
 -- Get the position of the tiles contained in the given Line of Sight
 getLos :: Coordinate -> Int -> [Coordinate]
