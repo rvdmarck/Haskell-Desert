@@ -15,6 +15,7 @@ module Desert
 
 import Control.Monad.State
 import qualified Data.Set as Set
+import System.Random
 
 import Strings
 import MapGeneration
@@ -32,7 +33,9 @@ data Gamestate = Gamestate
                  , currentTreasures    :: Int
                  , losCoords           :: [Coordinate]
                  , discoveredTiles     :: Set.Set Coordinate
-                 , worms               :: [[Coordinate]] }
+                 , worms               :: [[Coordinate]]
+                 , generators          :: [StdGen]
+                 , currentStep         :: Int }
 
 -- Get the position of the tiles contained in the given Line of Sight
 getLos :: Coordinate -> Int -> [Coordinate]

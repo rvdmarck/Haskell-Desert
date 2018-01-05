@@ -6,6 +6,7 @@ module Strings
 , waterTile
 , portalTile
 , treasureTile
+, wormTile
 , distClosestToW
 , distClosestToT
 , distClosestToP

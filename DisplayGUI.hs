@@ -9,7 +9,7 @@ import Desert
 import Strings
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
-import qualified Data.Vector    as Vec
+import qualified Data.Vector as Vec
 
 type Coordinate = (Int, Int)
 type Desert = [[String]]
