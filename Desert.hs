@@ -11,6 +11,7 @@ module Desert
 , pickUpTreasure
 , returnDesert
 , Gamestate (..)
+, Worm (..)
 )where
 
 import Control.Monad.State
@@ -24,6 +25,10 @@ import MapGeneration
 type Coordinate = (Int, Int)
 type Desert = [[String]]
 
+data Worm = Worm
+            { coords     :: [Coordinate]
+            , isEmerging :: Bool}
+
 data Gamestate = Gamestate
                  { desert              :: Desert
                  , parameters          :: Params
@@ -31,11 +36,12 @@ data Gamestate = Gamestate
                  , oldPlayerPos        :: Coordinate
                  , currentWater        :: Int
                  , currentTreasures    :: Int
-                 , losCoords           :: [Coordinate]
                  , discoveredTiles     :: Set.Set Coordinate
-                 , worms               :: [[Coordinate]]
+                 , worms               :: [Worm]
                  , generators          :: [StdGen]
-                 , currentStep         :: Int }
+                 , currentStep         :: Int
+                 , gameStarted         :: Bool
+                 , generator           :: StdGen}
 
 -- Get the position of the tiles contained in the given Line of Sight
 getLos :: Coordinate -> Int -> [Coordinate]

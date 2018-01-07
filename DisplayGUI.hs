@@ -24,21 +24,30 @@ windowHeight :: Int
 windowHeight = snd computeWindowSize
 
 makePicture :: Gamestate -> Picture
-makePicture gamestate = 
-  let offsetX = - fromIntegral windowWidth  / 2
-      offsetY = fromIntegral windowHeight / 2  - (fromIntegral tileSize +  fromIntegral tileSpace) +  fromIntegral tileSpace
-      desert' = replaceAt (playerPos gamestate) (desert gamestate) "Pl"
-      --subDesert = take nrLinesToDraw (map (take nrColsToDraw) desert')
-      subDesert = getSubDesert desert' (fst (playerPos gamestate) - (nrLinesToDraw `div` 2)) (fst (playerPos gamestate) + (nrLinesToDraw `div` 2)) (snd (playerPos gamestate) - (nrColsToDraw `div` 2)) (snd (playerPos gamestate) + (nrColsToDraw `div` 2))
-      vecDesert = Vec.fromList (concat subDesert)
-      offsetLine = max 0 (fst(playerPos gamestate) - (nrLinesToDraw `div` 2))
-      offsetCol = max 0 (snd(playerPos gamestate) - (nrColsToDraw `div` 2))
-  in  Translate offsetX offsetY 
-              $ Pictures 
-              $ Vec.toList ( Vec.imap (drawTile vecDesert gamestate offsetLine offsetCol) vecDesert) 
-              ++ [Translate 0 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Actual Position : (" ++ show (fst (playerPos gamestate)) ++ ", " ++ show (snd (playerPos gamestate)) ++ ")")
-                 ,Translate 200 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Water : " ++ show (currentWater gamestate))
-                 ,Translate 400 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Treasures : " ++ show (currentTreasures gamestate))] 
+makePicture gamestate 
+  | gameStarted gamestate = 
+      let offsetX = - fromIntegral windowWidth  / 2
+          offsetY = fromIntegral windowHeight / 2  - (fromIntegral tileSize +  fromIntegral tileSpace) +  fromIntegral tileSpace
+          desert' = replaceAt (playerPos gamestate) (desert gamestate) "Pl"
+          subDesert = getSubDesert desert' (fst (playerPos gamestate) - (nrLinesToDraw `div` 2)) (fst (playerPos gamestate) + (nrLinesToDraw `div` 2)) (snd (playerPos gamestate) - (nrColsToDraw `div` 2)) (snd (playerPos gamestate) + (nrColsToDraw `div` 2))
+          vecDesert = Vec.fromList (concat subDesert)
+          offsetLine = max 0 (fst(playerPos gamestate) - (nrLinesToDraw `div` 2))
+          offsetCol = max 0 (snd(playerPos gamestate) - (nrColsToDraw `div` 2))
+      in  Translate offsetX offsetY 
+                  $ Pictures 
+                  $ Vec.toList ( Vec.imap (drawTile vecDesert gamestate offsetLine offsetCol) vecDesert) 
+                  ++ [Translate 0 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Actual Position : (" ++ show (fst (playerPos gamestate)) ++ ", " ++ show (snd (playerPos gamestate)) ++ ")")
+                    ,Translate 200 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Water : " ++ show (currentWater gamestate))
+                    ,Translate 400 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Treasures : " ++ show (currentTreasures gamestate))] 
+  | otherwise = makePictureNotGameStarted gamestate
+
+makePictureNotGameStarted :: Gamestate -> Picture
+makePictureNotGameStarted gamestate =
+  Pictures [Translate 0 100 $ rectangleWire 100 50
+          , Translate (-40) 95 $ Scale 0.1 0.1 $ Text "START GAME"
+          , Translate 0 0 $ rectangleWire 100 50
+          , Translate (-40) (-5) $ Scale 0.1 0.1 $ Text "LOAD GAME"]
+    
 
 
 drawTile :: Vec.Vector String -> Gamestate -> Int -> Int -> Int -> String -> Picture
@@ -68,16 +77,26 @@ coordOfIndex i offsetLine offsetCol
 
 pictureOfTile :: Gamestate -> Int -> Int -> Int -> Int -> Int -> String -> Picture
 pictureOfTile gamestate x y tileSize posX posY tile
-  = if (y,x) `elem` discoveredTiles gamestate
-    then case tile of
-         "D"   -> Color (makeColor 1.0 0.5 0.0 1.0)  (tileShape tileSize posX posY)
-         "L"   -> Color (makeColor 1.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
-         "W"   -> Color (makeColor 0.0 0.0 1.0 1.0)  (tileShape tileSize posX posY)
-         "P"   -> Color (makeColor 0.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
-         "T"   -> Color (makeColor 1.0 0.8 0.0 1.0)  (tileShape tileSize posX posY)
-         "Pl"  -> Color (makeColor 1.0 1.0 1.0 1.0)  (tileShape tileSize posX posY)
-         "M"   -> Color (makeColor 0.0 1.0 0.0 1.0)  (tileShape tileSize posX posY)
-      else Color (makeColor 0.5 0.5 0.5 1.0)  (tileShape tileSize posX posY)
+  | coordElemMat (y,x) (worms gamestate) && (y,x) `elem` discoveredTiles gamestate =
+    Color (makeColor 0.0 1.0 0.0 1.0)  (tileShape tileSize posX posY)
+  | (y,x) `elem` discoveredTiles gamestate =
+    case tile of
+      "D"   -> Color (makeColor 1.0 0.5 0.0 1.0)  (tileShape tileSize posX posY)
+      "L"   -> Color (makeColor 1.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
+      "W"   -> Color (makeColor 0.0 0.0 1.0 1.0)  (tileShape tileSize posX posY)
+      "P"   -> Color (makeColor 0.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
+      "T"   -> Color (makeColor 1.0 0.8 0.0 1.0)  (tileShape tileSize posX posY)
+      "Pl"  -> Color (makeColor 1.0 1.0 1.0 1.0)  (tileShape tileSize posX posY)
+      "M"   -> Color (makeColor 0.0 1.0 0.0 1.0)  (tileShape tileSize posX posY)
+   | not ((y,x) `elem` discoveredTiles gamestate) = 
+      Color (makeColor 0.5 0.5 0.5 1.0)  (tileShape tileSize posX posY)
+
+coordElemMat :: Coordinate -> [Worm] -> Bool
+coordElemMat coord worms = 
+  let wormsCoords = map coords worms
+      bools = map (elem coord) wormsCoords
+  in True `elem` bools
+
 
 
 -- | The basic shape of a tile.

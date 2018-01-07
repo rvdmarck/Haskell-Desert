@@ -33,20 +33,20 @@ intParser = fmap read (many1 digit)
 
 coordParser :: Parser (Int, Int)
 coordParser = do
-    oneOf "("
-    oneOf "["
+    char '('
+    char '['
     x <- intParser
-    oneOf ","
+    char ','
     y <- intParser
-    oneOf "]"
-    oneOf ")"
+    char ']'
+    char ')'
     return (x,y)
 
 parensParser :: Parser Int
 parensParser = do 
-    oneOf "("
+    char '('
     val <- intParser
-    oneOf ")"
+    char ')'
     return val
 
 playerPositionParser :: Parser (Int, Int)

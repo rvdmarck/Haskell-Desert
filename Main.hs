@@ -9,6 +9,7 @@ import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import qualified Data.Vector as Vec
 import qualified Data.Set as Set
+import qualified Data.Maybe as Maybe
 import qualified Control.Concurrent.STM
 import Text.ParserCombinators.Parsec
 
@@ -25,12 +26,11 @@ type Vec        = Vec.Vector
 
 type Desert = [[String]]
 type Coordinate = (Int, Int)
-type Worm = Control.Concurrent.STM.TMVar ()
+
 
 
 main :: IO ()
 main = do
-  let saveContent = readFile "save.txt"
   parseInfos <-  parseFromFile gameParser "save.txt"
   case parseInfos of
     Left err -> print err
@@ -52,13 +52,30 @@ launchGameFromFile parseInfos = do
 
   play    (InWindow "Desert Game" (windowWidth,windowHeight+100) (600,200)) 
            white 100
-           (Gamestate desert params ppos ppos (maxWater params) 0 (getLos ppos (los params)) (Set.fromList(getLos ppos (los params))) [[]] (infiniteGenerators (mkStdGen 42)) 0) 
+           (Gamestate 
+              desert                                      -- desert
+              params                                      -- parameters
+              ppos                                        -- player position                    
+              ppos                                        -- precedent step's player position
+              (maxWater params)                           -- current water supply
+              0                                           -- current treasures number
+              (Set.fromList(getLos ppos (los params)))    -- coordinates of discovered tiles
+              []                                          -- worms list
+              (infiniteGenerators (mkStdGen 42))          -- infinite generators (used to spawn worms)
+              0                                           -- current step
+              False                                       -- boolean game is started or not
+              (mkStdGen 7))
            makePicture 
            handleEvent 
            stepWorld
 
 handleEvent :: Event -> Gamestate -> Gamestate
 handleEvent event gamestate 
+  | gameStarted gamestate = handleEventGameStarted event gamestate
+  | otherwise = handleEventNotGameStarted event gamestate
+
+handleEventGameStarted :: Event -> Gamestate -> Gamestate
+handleEventGameStarted event gamestate 
   | EventKey (Graphics.Gloss.Interface.Pure.Game.Char 'd') Down _ _ <- event
   = gamestate {playerPos = (fst(playerPos gamestate), snd(playerPos gamestate) + 1)}
 
@@ -78,45 +95,90 @@ handleEvent event gamestate
   | otherwise
   = gamestate
 
+handleEventNotGameStarted :: Event -> Gamestate -> Gamestate
+handleEventNotGameStarted event gamestate 
+  | EventKey (MouseButton LeftButton) Down _ pt@(x,y) <- event =
+      if x >= -50 && x <= 50 && y >= 75 && y <= 125
+        then gamestate {gameStarted = True}
+        else gamestate
+  | otherwise = gamestate
+
+
 
 stepWorld :: Float -> Gamestate -> Gamestate
 stepWorld _ gamestate 
   = if oldPlayerPos gamestate /= playerPos gamestate
-    then let newLos = getLos (playerPos gamestate) (los (parameters gamestate))
-             newDesert = spawnWorms gamestate 
-         in let g = gamestate {
-                    desert = newDesert
-                  , oldPlayerPos = playerPos gamestate
-                  , losCoords = newLos
-                  , discoveredTiles = Set.union (discoveredTiles gamestate) (Set.fromList newLos)
-                  , currentWater = fillOrDecrementWater2 (currentWater gamestate) (desert gamestate) (True, playerPos gamestate) (maxWater (parameters gamestate))
-                  , currentTreasures = checkTreasureFound2 (currentTreasures gamestate) (desert gamestate !! fst(playerPos gamestate) !! snd(playerPos gamestate))
-                  , currentStep = currentStep gamestate + 1}
-            in if currentTreasures gamestate /= currentTreasures g
-                then g{desert = replaceAt (playerPos g) (desert g) desertTile}
-                else g
+    then let  newLos = getLos (playerPos gamestate) (los (parameters gamestate))
+              g'' = gamestate {worms = map (moveWorm gamestate) (worms gamestate)}
+              g' = spawnWorms (discoveredTiles gamestate) g''
+              g = g' {
+                    oldPlayerPos = playerPos g'
+                  , discoveredTiles = Set.union (discoveredTiles g') (Set.fromList newLos)
+                  , currentWater = fillOrDecrementWater2 (currentWater g') (desert g') (True, playerPos g') (maxWater (parameters g'))
+                  , currentTreasures = checkTreasureFound2 (currentTreasures g') (desert g' !! fst(playerPos g') !! snd(playerPos g'))
+                  , currentStep = currentStep g' + 1}
+          in if currentTreasures g' /= currentTreasures g
+              then g{desert = replaceAt (playerPos g) (desert g) desertTile}
+              else g
     else gamestate
 
+randomSt :: (RandomGen g, Random a, Num a) => Control.Monad.State.State g a  
+randomSt = state (randomR (0,99)) 
 
-spawnWorms :: Gamestate -> Desert
-spawnWorms g  = 
-  let randomLists = infiniteRandomLists (generators g !! currentStep g)
-  in let d = (map . map) (corresp2 (wormSpawn (parameters g))) randomLists
-  in zipWith (zipWith compareWorm) (desert g) d
 
-corresp2 :: Int -> Int -> String
-corresp2 wormSpawn proba
-  | proba < wormSpawn = wormTile
-  | otherwise = desertTile
+spawnWorms :: Set.Set Coordinate -> Gamestate ->  Gamestate
+spawnWorms discoveredTiles g =
+  let d = desert g  
+      randomList = head (infiniteRandomLists (generators g !! currentStep g)) -- to optimize with directly 1 list
+      maybeWormList = map (\(coord,proba) -> spawnWorm d (wormSpawn (parameters g)) coord proba) $ zip (reduceSpawnLocations (worms g) (Set.toList discoveredTiles)) randomList
+      wormList = Maybe.catMaybes maybeWormList
+      wormList' = map createWorm wormList
+  in g{worms = worms g ++ wormList'}
 
-compareWorm :: String -> String -> String
-compareWorm x y  =
-  if x == desertTile
-    then
-      if y == wormTile
-        then wormTile
-        else desertTile
-    else x
+createWorm :: Coordinate -> Worm
+createWorm coord = Worm [coord] True
+
+spawnWorm :: Desert -> Int -> Coordinate -> Int -> Maybe Coordinate
+spawnWorm d spawnRate (x,y) proba = 
+  if d!!x!!y == desertTile && proba < spawnRate 
+    then Just (x,y)
+    else Nothing
+
+reduceSpawnLocations :: [Worm] -> [Coordinate] -> [Coordinate]
+reduceSpawnLocations worms discoveredTiles = 
+  let wormsCoords = map coords worms
+  in foldl (\\) discoveredTiles wormsCoords
+
+
+
+moveWorm :: Gamestate -> Worm -> Worm
+moveWorm gamestate worm = 
+  let d = desert gamestate
+      wormHead = head (coords worm)
+      adjTiles = getAdjTiles wormHead
+      adjCandidates = zip adjTiles (map (\(x,y) -> d!!x!!y == "D") adjTiles)
+      finalCandidates = filter snd adjCandidates
+      proba = round ((1 / fromIntegral (length finalCandidates)) *100)
+      randomValue = runState randomSt (generator gamestate)
+      targetTile = selectWormDirection proba finalCandidates (fst randomValue) 
+  in  if Maybe.isJust targetTile
+      then worm { coords = Maybe.fromJust targetTile : coords worm}
+      else worm
+    
+
+selectWormDirection :: Int -> [(Coordinate, Bool)] -> Int -> Maybe Coordinate
+selectWormDirection proba candidates randomValue
+  | proba == 0 = Nothing
+  | proba == 100 = Just $ fst $ head candidates
+  | otherwise = Just $ fst (candidates !! (randomValue `div` proba))
+
+getAdjTiles :: Coordinate -> [Coordinate]
+getAdjTiles (x,y)
+    | x < 1 && y < 1  = [(x+1,y), (x,y+1)]
+    | x < 1           = [(x+1,y), (x,y+1), (x,y-1)]
+    | y < 1           = [(x+1,y), (x,y+1), (x-1,y)]
+    | otherwise       = [(x+1,y), (x,y+1), (x,y-1), (x-1,y)]
+
 
 
 
