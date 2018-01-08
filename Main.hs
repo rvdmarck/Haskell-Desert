@@ -31,13 +31,11 @@ type Coordinate = (Int, Int)
 
 main :: IO ()
 main = do
-  parseInfos <-  parseFromFile gameParser "save.txt"
+  parseInfos <-  parseFromFile gameParser "saves/save.txt"
   case parseInfos of
     Left err -> print err
     Right parseInfos -> launchGameFromFile parseInfos
   
-
-  --gameLoop ppos desert params (maxWater params) 0 []
 
 launchGameFromFile :: ParseInfos -> IO()
 launchGameFromFile parseInfos = do
@@ -109,7 +107,8 @@ stepWorld :: Float -> Gamestate -> Gamestate
 stepWorld _ gamestate 
   = if oldPlayerPos gamestate /= playerPos gamestate
     then let  newLos = getLos (playerPos gamestate) (los (parameters gamestate))
-              g'' = gamestate {worms = map (moveWorm gamestate) (worms gamestate)}
+              (ga, randoms) = generateRandoms gamestate (length (worms gamestate))
+              g'' = ga {worms = map (moveWorm ga) (zip (worms ga) randoms)}
               g' = spawnWorms (discoveredTiles gamestate) g''
               g = g' {
                     oldPlayerPos = playerPos g'
@@ -149,18 +148,15 @@ reduceSpawnLocations worms discoveredTiles =
   let wormsCoords = map coords worms
   in foldl (\\) discoveredTiles wormsCoords
 
-
-
-moveWorm :: Gamestate -> Worm -> Worm
-moveWorm gamestate worm = 
+moveWorm :: Gamestate ->(Worm, Int) -> Worm
+moveWorm gamestate (worm, random) = 
   let d = desert gamestate
       wormHead = head (coords worm)
       adjTiles = getAdjTiles wormHead
-      adjCandidates = zip adjTiles (map (\(x,y) -> d!!x!!y == "D") adjTiles)
+      adjCandidates = zip adjTiles (map (\(x,y) -> d!!x!!y == "D" && not (coordElemMat (x,y) (worms gamestate))) adjTiles)
       finalCandidates = filter snd adjCandidates
-      proba = round ((1 / fromIntegral (length finalCandidates)) *100)
-      randomValue = runState randomSt (generator gamestate)
-      targetTile = selectWormDirection proba finalCandidates (fst randomValue) 
+      proba = ceiling ((1 / fromIntegral (length finalCandidates)) *100)
+      targetTile = selectWormDirection proba finalCandidates random
   in  if Maybe.isJust targetTile
       then worm { coords = Maybe.fromJust targetTile : coords worm}
       else worm
@@ -170,7 +166,8 @@ selectWormDirection :: Int -> [(Coordinate, Bool)] -> Int -> Maybe Coordinate
 selectWormDirection proba candidates randomValue
   | proba == 0 = Nothing
   | proba == 100 = Just $ fst $ head candidates
-  | otherwise = Just $ fst (candidates !! (randomValue `div` proba))
+  | proba < 100 = Just $ fst (candidates !! (randomValue `div` proba))
+  | otherwise = Nothing
 
 getAdjTiles :: Coordinate -> [Coordinate]
 getAdjTiles (x,y)
@@ -179,9 +176,19 @@ getAdjTiles (x,y)
     | y < 1           = [(x+1,y), (x,y+1), (x-1,y)]
     | otherwise       = [(x+1,y), (x,y+1), (x,y-1), (x-1,y)]
 
+generateRandoms :: Gamestate -> Int -> (Gamestate, [Int])
+generateRandoms gamestate 0 = (gamestate, [])
+generateRandoms gamestate n = 
+  let (val, gen) = runState randomSt (generator gamestate)
+      g = gamestate {generator = gen}
+  in (g, val : snd (generateRandoms g (n-1)))
 
 
 
+
+
+
+  
 gameLoop :: Coordinate -> Desert -> Params -> Int -> Int -> [Coordinate] -> IO ()
 gameLoop ppos desert params currentWater currentTreasures undiscoveredTilesCoord = do
   let los' = getLos ppos (los params)

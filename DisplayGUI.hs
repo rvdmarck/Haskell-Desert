@@ -3,6 +3,7 @@ module DisplayGUI
   makePicture
 , windowWidth
 , windowHeight
+, coordElemMat
 ) where
 
 import Desert 
