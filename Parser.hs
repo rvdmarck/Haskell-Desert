@@ -34,18 +34,26 @@ intParser = fmap read (many1 digit)
 coordParser :: Parser (Int, Int)
 coordParser = do
     char '('
+    space
     char '['
+    space
     x <- intParser
+    space
     char ','
+    space
     y <- intParser
+    space
     char ']'
+    space
     char ')'
     return (x,y)
 
 parensParser :: Parser Int
 parensParser = do 
     char '('
+    space
     val <- intParser
+    space
     char ')'
     return val
 
@@ -106,14 +114,8 @@ gameParser = do
     eol
     y <- paramParser
     eol
-    return (ParseInfos playerPos supply revealed collected (Params s m g t w p l ll y))
+    return (ParseInfos playerPos supply revealed collected (Params s m g t w p l ll x y))
 
 
 parseGame :: String -> Either ParseError ParseInfos
 parseGame = parse gameParser "(unknown)" 
-
---parseGameFromFile :: Parser ParseInfos -> String -> IO (Either ParseError ParseInfos)
---parseGameFromFile = parseFromFile gameParser
-
-doParse = 
-    parseGame "position ([0,0])\nsupply (50)\nrevealed ([0,0])\nrevealed ([1,0])\ncollected ([0,0])\ncollected ([1,0])\ns (2)\nm (3)\ng (13)\nt (10)\nw (25)\np (15)\nl (15)\nll (20)\nx (3)\ny (5)\n"

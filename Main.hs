@@ -10,7 +10,7 @@ import Graphics.Gloss.Interface.Pure.Game
 import qualified Data.Vector as Vec
 import qualified Data.Set as Set
 import qualified Data.Maybe as Maybe
-import qualified Control.Concurrent.STM
+import qualified Control.Concurrent.STM as STM
 import Text.ParserCombinators.Parsec
 
 
@@ -62,7 +62,8 @@ launchGameFromFile parseInfos = do
               (infiniteGenerators (mkStdGen 42))          -- infinite generators (used to spawn worms)
               0                                           -- current step
               False                                       -- boolean game is started or not
-              (mkStdGen 7))
+              (mkStdGen 7)
+              "saves/save.txt")
            makePicture 
            handleEvent 
            stepWorld
@@ -90,6 +91,10 @@ handleEventGameStarted event gamestate
       then gamestate {playerPos = (fst(playerPos gamestate), snd(playerPos gamestate) - 1)}
       else gamestate
 
+  | EventKey (SpecialKey KeyF5) Down _ _ <- event
+  = let s = gameToString gamestate
+    in gamestate
+
   | otherwise
   = gamestate
 
@@ -100,7 +105,6 @@ handleEventNotGameStarted event gamestate
         then gamestate {gameStarted = True}
         else gamestate
   | otherwise = gamestate
-
 
 
 stepWorld :: Float -> Gamestate -> Gamestate
@@ -120,6 +124,7 @@ stepWorld _ gamestate
               then g{desert = replaceAt (playerPos g) (desert g) desertTile}
               else g
     else gamestate
+
 
 randomSt :: (RandomGen g, Random a, Num a) => Control.Monad.State.State g a  
 randomSt = state (randomR (0,99)) 
@@ -184,9 +189,28 @@ generateRandoms gamestate n =
   in (g, val : snd (generateRandoms g (n-1)))
 
 
+gameToString :: Gamestate -> String
+gameToString g= let res = ""
+                    pos = "position " ++ makeCoord (playerPos g)
+                    supply = "supply " ++ makeParens (show $ currentWater g)
+                    revealed = unlines $ map (\x -> "revealed " ++ makeCoord x) (Set.toList $ discoveredTiles g)
+                    s = "s " ++ makeParens (show $ los $ parameters g)
+                    m = "m " ++ makeParens (show $ maxWater $ parameters g)
+                    g' = "g " ++ makeParens (show $ initialSeed $ parameters g)
+                    t = "t " ++ makeParens (show $ treasurelh $ parameters g)
+                    w = "w " ++ makeParens (show $ waterlh $ parameters g)
+                    p = "p " ++ makeParens (show $ portallh $ parameters g)
+                    l = "l " ++ makeParens (show $ lavalh $ parameters g)
+                    ll = "ll " ++ makeParens (show $ lavalh' $ parameters g)
+                    x = "x " ++ makeParens (show $ wormSpawn $ parameters g)
+                    y = "y " ++ makeParens (show $ wormSpawn $ parameters g)
+                in  (unlines[pos,supply] ++ revealed ++ unlines[s, m, g', t, w, p, l, ll, x, y])
 
+makeParens :: String -> String
+makeParens s =  "( " ++ s ++ " )"
 
-
+makeCoord :: Coordinate -> String
+makeCoord c = makeParens  ("[ " ++ show (fst c) ++ " , " ++  show (snd c) ++ " ]")
 
   
 gameLoop :: Coordinate -> Desert -> Params -> Int -> Int -> [Coordinate] -> IO ()
@@ -226,14 +250,3 @@ checkEndGame desert ppos currWater
   | desert !! fst ppos !! snd ppos `elem` [lavaTile, "L'"] || currWater == 0 = return 1
   | desert !! fst ppos !! snd ppos == portalTile = return 2
   | otherwise = return 0
-
-
-
-
-
-
-
-
-
-
-

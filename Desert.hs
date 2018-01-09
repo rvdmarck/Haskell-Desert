@@ -41,7 +41,8 @@ data Gamestate = Gamestate
                  , generators          :: [StdGen]
                  , currentStep         :: Int
                  , gameStarted         :: Bool
-                 , generator           :: StdGen}
+                 , generator           :: StdGen
+                 , savePath            :: String}
 
 -- Get the position of the tiles contained in the given Line of Sight
 getLos :: Coordinate -> Int -> [Coordinate]

@@ -8,6 +8,7 @@ module DisplayGUI
 
 import Desert 
 import Strings
+import BFS
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import qualified Data.Vector as Vec
@@ -38,8 +39,11 @@ makePicture gamestate
                   $ Pictures 
                   $ Vec.toList ( Vec.imap (drawTile vecDesert gamestate offsetLine offsetCol) vecDesert) 
                   ++ [Translate 0 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Actual Position : (" ++ show (fst (playerPos gamestate)) ++ ", " ++ show (snd (playerPos gamestate)) ++ ")")
-                    ,Translate 200 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Water : " ++ show (currentWater gamestate))
-                    ,Translate 400 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Treasures : " ++ show (currentTreasures gamestate))] 
+                    , Translate 200 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Water : " ++ show (currentWater gamestate))
+                    , Translate 400 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Treasures : " ++ show (currentTreasures gamestate))
+                    , Translate 0 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Water : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) waterTile [] [(playerPos gamestate, 0)]))
+                    , Translate 200 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Treasure : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) treasureTile [] [(playerPos gamestate, 0)]))
+                    , Translate 400 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Portal : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) portalTile [] [(playerPos gamestate, 0)]))] 
   | otherwise = makePictureNotGameStarted gamestate
 
 makePictureNotGameStarted :: Gamestate -> Picture
