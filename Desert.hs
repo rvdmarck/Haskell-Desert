@@ -17,6 +17,7 @@ module Desert
 import Control.Monad.State
 import qualified Data.Set as Set
 import System.Random
+import qualified Control.Concurrent.STM as STM
 
 import Strings
 import MapGeneration
@@ -42,7 +43,8 @@ data Gamestate = Gamestate
                  , currentStep         :: Int
                  , gameStarted         :: Bool
                  , generator           :: StdGen
-                 , savePath            :: String}
+                 , savePath            :: String
+                 , wormsTVars          :: [STM.TVar(Worm)]}
 
 -- Get the position of the tiles contained in the given Line of Sight
 getLos :: Coordinate -> Int -> [Coordinate]

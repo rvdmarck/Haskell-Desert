@@ -3,6 +3,7 @@ module Main where
 import System.Environment
 import System.Random
 import Control.Monad.State
+import Control.Monad
 import Data.List
 import Text.Read
 import Graphics.Gloss
@@ -47,7 +48,7 @@ launchGameFromFile parseInfos = do
   let randomTreasures = infiniteRandomLists (mkStdGen (initialSeed params * 2))
   let randomTreasuresTiles = (map . map) (corresp params) randomTreasures
   let desert = zipWith (zipWith compareTreasure) randomTiles randomTreasuresTiles
-
+  var <- Control.Monad.replicateM 3 (STM.newTVarIO (Worm [] True))
   play    (InWindow "Desert Game" (windowWidth,windowHeight+100) (600,200)) 
            white 100
            (Gamestate 
@@ -63,7 +64,8 @@ launchGameFromFile parseInfos = do
               0                                           -- current step
               False                                       -- boolean game is started or not
               (mkStdGen 7)
-              "saves/save.txt")
+              "saves/save.txt"
+              var)
            makePicture 
            handleEvent 
            stepWorld
@@ -133,7 +135,7 @@ randomSt = state (randomR (0,99))
 spawnWorms :: Set.Set Coordinate -> Gamestate ->  Gamestate
 spawnWorms discoveredTiles g =
   let d = desert g  
-      randomList = head (infiniteRandomLists (generators g !! currentStep g)) -- to optimize with directly 1 list
+      randomList = head (infiniteRandomLists (generators g !! currentStep g))
       maybeWormList = map (\(coord,proba) -> spawnWorm d (wormSpawn (parameters g)) coord proba) $ zip (reduceSpawnLocations (worms g) (Set.toList discoveredTiles)) randomList
       wormList = Maybe.catMaybes maybeWormList
       wormList' = map createWorm wormList
