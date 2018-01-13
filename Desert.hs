@@ -3,6 +3,7 @@ module Desert
   getLos
 , addUncoveredTiles
 , replaceAt
+, replaceAts
 , doMove
 , fillOrDecrementWater
 , fillOrDecrementWater2
@@ -28,7 +29,7 @@ type Desert = [[String]]
 
 data Worm = Worm
             { coords     :: [Coordinate]
-            , isEmerging :: Bool}
+            , isEmerging :: Bool} deriving Show
 
 data Gamestate = Gamestate
                  { desert              :: Desert
@@ -36,15 +37,15 @@ data Gamestate = Gamestate
                  , playerPos           :: Coordinate
                  , oldPlayerPos        :: Coordinate
                  , currentWater        :: Int
-                 , currentTreasures    :: Int
                  , discoveredTiles     :: Set.Set Coordinate
+                 , collectedTreasures  :: [Coordinate]
                  , worms               :: [Worm]
                  , generators          :: [StdGen]
                  , currentStep         :: Int
                  , gameStarted         :: Bool
                  , generator           :: StdGen
                  , savePath            :: String
-                 , wormsTVars          :: [STM.TVar(Worm)]}
+                 , wormsTVars          :: [STM.TVar Worm]}
 
 -- Get the position of the tiles contained in the given Line of Sight
 getLos :: Coordinate -> Int -> [Coordinate]
@@ -101,6 +102,13 @@ replaceAt ppos desert val =
   let (x,_:ys) = splitAt (snd ppos) (desert !! fst ppos)
     in let (x',_ : ys') = splitAt (fst ppos) desert
       in x' ++ [x ++ val : ys] ++ ys'
+
+replaceAts :: [Coordinate] -> Desert -> String -> Desert
+replaceAts [] desert val = desert
+replaceAts (ppos: pos) desert val =
+  let (x,_:ys) = splitAt (snd ppos) (desert !! fst ppos)
+      (x',_ : ys') = splitAt (fst ppos) desert
+  in replaceAts pos (x' ++ [x ++ val : ys] ++ ys') val
 
 move :: String -> State Coordinate Bool
 move d = state $ \(row, col) -> case d of

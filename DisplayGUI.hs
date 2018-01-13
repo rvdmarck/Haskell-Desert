@@ -4,6 +4,7 @@ module DisplayGUI
 , windowWidth
 , windowHeight
 , coordElemMat
+, coordElemMatTM
 ) where
 
 import Desert 
@@ -12,6 +13,7 @@ import BFS
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import qualified Data.Vector as Vec
+import qualified Control.Concurrent.STM as STM
 
 type Coordinate = (Int, Int)
 type Desert = [[String]]
@@ -25,7 +27,7 @@ windowWidth = fst computeWindowSize
 windowHeight :: Int
 windowHeight = snd computeWindowSize
 
-makePicture :: Gamestate -> Picture
+makePicture :: Gamestate -> IO Picture
 makePicture gamestate 
   | gameStarted gamestate = 
       let offsetX = - fromIntegral windowWidth  / 2
@@ -35,16 +37,17 @@ makePicture gamestate
           vecDesert = Vec.fromList (concat subDesert)
           offsetLine = max 0 (fst(playerPos gamestate) - (nrLinesToDraw `div` 2))
           offsetCol = max 0 (snd(playerPos gamestate) - (nrColsToDraw `div` 2))
-      in  Translate offsetX offsetY 
+      in return (Translate offsetX offsetY 
                   $ Pictures 
                   $ Vec.toList ( Vec.imap (drawTile vecDesert gamestate offsetLine offsetCol) vecDesert) 
                   ++ [Translate 0 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Actual Position : (" ++ show (fst (playerPos gamestate)) ++ ", " ++ show (snd (playerPos gamestate)) ++ ")")
                     , Translate 200 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Water : " ++ show (currentWater gamestate))
-                    , Translate 400 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Treasures : " ++ show (currentTreasures gamestate))
+                    , Translate 400 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Treasures : " ++ show (length $ collectedTreasures gamestate))
                     , Translate 0 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Water : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) waterTile [] [(playerPos gamestate, 0)]))
                     , Translate 200 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Treasure : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) treasureTile [] [(playerPos gamestate, 0)]))
                     , Translate 400 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Portal : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) portalTile [] [(playerPos gamestate, 0)]))] 
-  | otherwise = makePictureNotGameStarted gamestate
+                )
+  | otherwise = return (makePictureNotGameStarted gamestate)
 
 makePictureNotGameStarted :: Gamestate -> Picture
 makePictureNotGameStarted gamestate =
@@ -96,12 +99,20 @@ pictureOfTile gamestate x y tileSize posX posY tile
    | not ((y,x) `elem` discoveredTiles gamestate) = 
       Color (makeColor 0.5 0.5 0.5 1.0)  (tileShape tileSize posX posY)
 
+
 coordElemMat :: Coordinate -> [Worm] -> Bool
 coordElemMat coord worms = 
   let wormsCoords = map coords worms
       bools = map (elem coord) wormsCoords
   in True `elem` bools
 
+
+coordElemMatTM :: Coordinate -> [STM.TVar Worm] -> IO Bool
+coordElemMatTM coord worms = do 
+  worms' <- mapM (STM.atomically . STM.readTVar) worms
+  let   wormsCoords = map coords worms'
+        bools = map (elem coord) wormsCoords
+    in return (True `elem` bools)
 
 
 -- | The basic shape of a tile.
