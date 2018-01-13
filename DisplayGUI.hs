@@ -31,7 +31,7 @@ makePicture :: Gamestate -> IO Picture
 makePicture gamestate 
   | gameStarted gamestate = 
       let offsetX = - fromIntegral windowWidth  / 2
-          offsetY = fromIntegral windowHeight / 2  - (fromIntegral tileSize +  fromIntegral tileSpace) +  fromIntegral tileSpace
+          offsetY = fromIntegral windowHeight / 2  - fromIntegral tileSize
           desert' = replaceAt (playerPos gamestate) (desert gamestate) "Pl"
           subDesert = getSubDesert desert' (fst (playerPos gamestate) - (nrLinesToDraw `div` 2)) (fst (playerPos gamestate) + (nrLinesToDraw `div` 2)) (snd (playerPos gamestate) - (nrColsToDraw `div` 2)) (snd (playerPos gamestate) + (nrColsToDraw `div` 2))
           vecDesert = Vec.fromList (concat subDesert)
@@ -63,7 +63,7 @@ drawTile desert gamestate offsetLine offsetCol index tile
   = let  cs      = tileSize
          cp      = tileSpace
 
-         (x, y)  = coordOfIndex index offsetLine offsetCol
+         (x, y)  = coordOfIndex index
          fx      = fromIntegral x * (cs + cp) + 1
          fy      = fromIntegral y * (cs + cp) + 1
 
@@ -77,8 +77,8 @@ drawTile desert gamestate offsetLine offsetCol index tile
                 tile
               
 
-coordOfIndex :: Int -> Int -> Int ->  (Int, Int)
-coordOfIndex i offsetLine offsetCol            
+coordOfIndex :: Int ->  (Int, Int)
+coordOfIndex i           
         = ( i `mod` nrColsToDraw
           , i `div` nrColsToDraw )
 

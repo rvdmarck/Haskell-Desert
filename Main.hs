@@ -49,7 +49,7 @@ launchGameFromFile parseInfos = do
       discoveredTiles = parsedRevealed parseInfos
       collectedTreasures = parsedCollected parseInfos
       desert = replaceAts collectedTreasures desert' "D"
-  var <- Control.Monad.replicateM 3 (STM.newTVarIO (Worm [] True))
+  wormListTVar <- createTVarsFromWorms wormList
   playIO  (InWindow "Desert Game" (windowWidth,windowHeight+100) (600,200)) 
           white 100
           (Gamestate 
@@ -64,9 +64,9 @@ launchGameFromFile parseInfos = do
               (infiniteGenerators (mkStdGen 42))          -- infinite generators (used to spawn worms)
               0                                           -- current step
               False                                       -- boolean game is started or not
-              (mkStdGen 7)
-              "saves/save.txt"
-              var)
+              (mkStdGen 7)                                -- single generator
+              "saves/save.txt"  
+              wormListTVar)
           makePicture 
           handleEvent 
           stepWorld
@@ -115,25 +115,27 @@ handleEventNotGameStarted event gamestate
 stepWorld :: Float -> Gamestate -> IO Gamestate
 stepWorld _ gamestate = 
   if oldPlayerPos gamestate /= playerPos gamestate
-    then do 
-      let (g1, randoms) = generateRandoms gamestate (length (worms gamestate))
-      test <- Async.mapConcurrently (moveWormTM g1) (zip (wormsTVars g1) randoms)
+    then do       
       let   newLos = getLos (playerPos gamestate) (los (parameters gamestate))
             (g1, randoms) = generateRandoms gamestate (length (worms gamestate))
-            g2 = g1 {worms = filter (not . isDead) (map (moveWorm g1) (zip (worms g1) randoms))}
-            g3 = spawnWorms (discoveredTiles gamestate) g2
-            g4 = g3 {
-                  oldPlayerPos = playerPos g3
-                  , discoveredTiles = Set.union (discoveredTiles g3) (Set.fromList newLos)
-                  , currentWater = fillOrDecrementWater2 (currentWater g3) (desert g3) (True, playerPos g3) (maxWater (parameters g3))
-                  , currentStep = currentStep g3 + 1}
-            gTest = spawnWormsTM (discoveredTiles gamestate) g4
+
+      Async.mapConcurrently (moveWorm g1) (zip (wormsTVars g1) randoms)
+      wormsFromTVars <- mapM (STM.atomically . STM.readTVar) (wormsTVars g1)
+      filteredWormsTVars <- filterM (fmap not . isDeadTM) (wormsTVars g1)
+      let   g2 = g1 {worms = filter (not . isDead) wormsFromTVars
+                    ,wormsTVars = filteredWormsTVars}
+            g3 = g2 {
+                  oldPlayerPos = playerPos g2
+                  , discoveredTiles = Set.union (discoveredTiles g2) (Set.fromList newLos)
+                  , currentWater = fillOrDecrementWater2 (currentWater g2) (desert g2) (True, playerPos g2) (maxWater (parameters g2))
+                  , currentStep = currentStep g2 + 1}
+      g4 <- spawnWorms (discoveredTiles gamestate) g3
               
-          in if desert g4 !! fst(playerPos g4) !! snd(playerPos g4) == "T"
-              then return g4{
-                          desert = replaceAt (playerPos g4) (desert g4) desertTile
-                        , collectedTreasures = playerPos g4 : collectedTreasures g4}
-              else return g4
+      if desert g4 !! fst(playerPos g4) !! snd(playerPos g4) == "T"
+        then return g4{
+                    desert = replaceAt (playerPos g4) (desert g4) desertTile
+                  , collectedTreasures = playerPos g4 : collectedTreasures g4}
+        else return g4
     else return gamestate
 
 
@@ -141,38 +143,28 @@ randomSt :: (RandomGen g, Random a, Num a) => Control.Monad.State.State g a
 randomSt = state (randomR (0,99)) 
 
 
-spawnWorms :: Set.Set Coordinate -> Gamestate ->  Gamestate
-spawnWorms discoveredTiles g =
-  let d = desert g  
-      randomList = head (infiniteRandomLists (generators g !! currentStep g))
-      maybeWormList = map (\(coord,proba) -> spawnWorm d (wormSpawn (parameters g)) coord proba) $ zip (reduceSpawnLocations (worms g) (Set.toList discoveredTiles)) randomList
-      wormList = Maybe.catMaybes maybeWormList
-      wormList' = map createWorm wormList
-  in g{worms = worms g ++ wormList'}
-
-
 ------------------------------- TM
 
-spawnWormsTM :: Set.Set Coordinate -> Gamestate -> IO Gamestate
-spawnWormsTM discoveredTiles g = 
+spawnWorms :: Set.Set Coordinate -> Gamestate -> IO Gamestate
+spawnWorms discoveredTiles g = 
   let d = desert g  
       randomList = head (infiniteRandomLists (generators g !! currentStep g))
       maybeWormList = map (\(coord,proba) -> spawnWorm d (wormSpawn (parameters g)) coord proba) $ zip (reduceSpawnLocations (worms g) (Set.toList discoveredTiles)) randomList
       wormList = Maybe.catMaybes maybeWormList
   in do 
-    tmvars <- mapM createWormTM wormList
+    tmvars <- mapM createWorm wormList
     return g{wormsTVars = wormsTVars g ++ tmvars}
 
-createWormTM :: Coordinate -> IO (STM.TVar Worm)
-createWormTM coord = STM.newTVarIO (Worm [coord] True)
+createWorm :: Coordinate -> IO (STM.TVar Worm)
+createWorm coord = STM.newTVarIO (Worm [coord] True)
 
-moveWormTM :: Gamestate -> (STM.TVar Worm, Int) -> IO ()
-moveWormTM gamestate (worm, random) = do
+moveWorm :: Gamestate -> (STM.TVar Worm, Int) -> IO ()
+moveWorm gamestate (worm, random) = do
   currentWorm <- STM.atomically $ STM.readTVar worm
   if length (coords currentWorm) == wormLength (parameters gamestate) || not (isEmerging currentWorm)
-  then do
-    let worm' = currentWorm {coords = take (length (coords currentWorm)-1) (coords currentWorm), isEmerging = False}
-    return ()
+  then 
+    STM.atomically ( STM.writeTVar worm (currentWorm {coords = take (length (coords currentWorm)-1) (coords currentWorm), isEmerging = False}))
+    
   else do
     otherWorms <-  mapM (STM.atomically . STM.readTVar) (wormsTVars gamestate)
     let d = desert gamestate
@@ -184,9 +176,9 @@ moveWormTM gamestate (worm, random) = do
         intermediateFinalCandidates = zip3 adjTiles validTiles tilesWithNoWorm
         finalCandidates = filter isValidTile intermediateFinalCandidates
         proba = ceiling ((1 / fromIntegral (length finalCandidates)) * 100)
-        targetTile = selectWormDirectionTM proba finalCandidates random
+        targetTile = selectWormDirection proba finalCandidates random
     if Maybe.isJust targetTile
-      then STM.atomically ( STM.writeTVar worm  (currentWorm { coords = Maybe.fromJust targetTile : coords currentWorm}))
+      then STM.atomically ( STM.writeTVar worm  (currentWorm {coords = Maybe.fromJust targetTile : coords currentWorm}))
       else STM.atomically ( STM.writeTVar worm  (currentWorm {coords = take (length (coords currentWorm)-1) (coords currentWorm), isEmerging = False}))
             
             
@@ -196,19 +188,30 @@ isValidTile (c, a, b) = a && b
 fst3 :: (a,b,c) -> a
 fst3 (x,_,_) = x
 
-selectWormDirectionTM :: Int -> [(Coordinate, Bool, Bool)] -> Int -> Maybe Coordinate
-selectWormDirectionTM proba candidates randomValue
+selectWormDirection :: Int -> [(Coordinate, Bool, Bool)] -> Int -> Maybe Coordinate
+selectWormDirection proba candidates randomValue
   | proba == 0 = Nothing
   | proba == 100 = Just $ fst3  $ head candidates
   | proba < 100 = Just $ fst3  (candidates !! (randomValue `div` proba))
   | otherwise = Nothing
+
+  
+isDeadTM :: STM.TVar Worm -> IO Bool
+isDeadTM w = do
+   worm <- STM.atomically $ STM.readTVar w
+   return (null (coords worm))
+ 
+
+createTVarsFromWorms :: [Worm] -> IO [STM.TVar Worm]
+createTVarsFromWorms  = 
+  mapM STM.newTVarIO 
+
+
 -----------------------------------TM
 
 isDead :: Worm -> Bool
 isDead w = null (coords w)
 
-createWorm :: Coordinate -> Worm
-createWorm coord = Worm [coord] True
 
 spawnWorm :: Desert -> Int -> Coordinate -> Int -> Maybe Coordinate
 spawnWorm d spawnRate (x,y) proba = 
@@ -220,30 +223,6 @@ reduceSpawnLocations :: [Worm] -> [Coordinate] -> [Coordinate]
 reduceSpawnLocations worms discoveredTiles = 
   let wormsCoords = map coords worms
   in foldl (\\) discoveredTiles wormsCoords
-
-moveWorm :: Gamestate -> (Worm, Int) -> Worm
-moveWorm gamestate (worm, random) = 
-  if length (coords worm) == wormLength (parameters gamestate) || not (isEmerging worm)
-  then worm {coords = take (length (coords worm)-1) (coords worm), isEmerging = False}
-  else
-  let d = desert gamestate
-      wormHead = head (coords worm)
-      adjTiles = getAdjTiles wormHead
-      adjCandidates = zip adjTiles (map (\(x,y) -> d!!x!!y == "D" && not (coordElemMat (x,y) (worms gamestate))) adjTiles)
-      finalCandidates = filter snd adjCandidates
-      proba = ceiling ((1 / fromIntegral (length finalCandidates)) * 100)
-      targetTile = selectWormDirection proba finalCandidates random
-  in  if Maybe.isJust targetTile
-      then worm { coords = Maybe.fromJust targetTile : coords worm}
-      else worm {coords = take (length (coords worm)-1) (coords worm), isEmerging = False}
-    
-
-selectWormDirection :: Int -> [(Coordinate, Bool)] -> Int -> Maybe Coordinate
-selectWormDirection proba candidates randomValue
-  | proba == 0 = Nothing
-  | proba == 100 = Just $ fst $ head candidates
-  | proba < 100 = Just $ fst (candidates !! (randomValue `div` proba))
-  | otherwise = Nothing
 
 getAdjTiles :: Coordinate -> [Coordinate]
 getAdjTiles (x,y)
