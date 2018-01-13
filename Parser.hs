@@ -136,9 +136,6 @@ gameParser = do
     return (ParseInfos playerPos supply revealed collected (Params s m g t w p l ll x y) (makeWorms emerging disappearing))
 
 
-parseGame :: String -> Either ParseError ParseInfos
-parseGame = parse gameParser "(unknown)" 
-
 makeWorms :: [[Coordinate]] -> [[Coordinate]] -> [Worm]
 makeWorms emerging disappearing = 
     map (makeWorm True) emerging ++ map (makeWorm False) disappearing

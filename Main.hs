@@ -21,19 +21,48 @@ import Display
 import DisplayGUI
 import Desert
 import Parser
+import Worm
 
 
 type Desert = [[String]]
 type Coordinate = (Int, Int)
 
-
+{-
 main :: IO ()
 main = do
   parseInfos <-  parseFromFile gameParser "saves/test.txt"
   case parseInfos of
     Left err -> print err
     Right parseInfos -> launchGameFromFile parseInfos
+-}
   
+main :: IO()
+main =
+  let params = Params 0 0 0 0 0 0 0 0 0 0
+    in playIO  (InWindow "Desert Game" (windowWidth,windowHeight+100) (600,200)) 
+          white 100
+          (Gamestate 
+              [[]]                                        -- desert
+              params                                      -- parameters
+              (0,0)                                       -- player position                    
+              (0,0)                                       -- precedent step's player position
+              (maxWater params)                           -- current water supply
+              Set.empty                                          -- coordinates of discovered tiles
+              []                                          -- coordinates of collected treasures
+              []                                          -- worms list
+              []                                          -- infinite generators (used to spawn worms)
+              0                                           -- current step
+              False                                       -- boolean game is started or not
+              (mkStdGen 7)                                -- single generator
+              ""  
+              []
+              False
+              (-30,250)
+              0)
+          makePicture 
+          handleEvent 
+          stepWorld
+
 
 launchGameFromFile :: ParseInfos -> IO()
 launchGameFromFile parseInfos = do
@@ -49,7 +78,7 @@ launchGameFromFile parseInfos = do
       discoveredTiles = parsedRevealed parseInfos
       collectedTreasures = parsedCollected parseInfos
       desert = replaceAts collectedTreasures desert' "D"
-  wormListTVar <- createTVarsFromWorms wormList
+  wormListTVar <- mapM STM.newTVarIO  wormList
   playIO  (InWindow "Desert Game" (windowWidth,windowHeight+100) (600,200)) 
           white 100
           (Gamestate 
@@ -66,7 +95,10 @@ launchGameFromFile parseInfos = do
               False                                       -- boolean game is started or not
               (mkStdGen 7)                                -- single generator
               "saves/save.txt"  
-              wormListTVar)
+              wormListTVar
+              True
+              (0,0)
+              0)
           makePicture 
           handleEvent 
           stepWorld
@@ -74,7 +106,103 @@ launchGameFromFile parseInfos = do
 handleEvent :: Event -> Gamestate -> IO Gamestate
 handleEvent event gamestate 
   | gameStarted gamestate = handleEventGameStarted event gamestate
+  | paramsLoop gamestate = handleEventParamsLoop event gamestate
   | otherwise = handleEventNotGameStarted event gamestate
+
+handleEventParamsLoop :: Event -> Gamestate -> IO Gamestate
+handleEventParamsLoop event gamestate 
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '0') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 0
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '1') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 1
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '2') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 2
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '3') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 3
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '4') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 4
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '5') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 5
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '6') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 6
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '7') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 7
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '8') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 8
+    return gamestate { parameters = param}
+
+  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '9') Down _ _ <- event
+  = do 
+    let param = modifyParam (parameters gamestate) (currentParam gamestate) 9
+    return gamestate { parameters = param}
+
+  | EventKey (SpecialKey KeyEnter) Down _ _ <- event
+  = if currentParam gamestate < 10
+      then return gamestate {currentParam = currentParam gamestate + 1}
+      else initGamestate gamestate--gamestate {paramsLoop = False, gameStarted = True}
+
+  | otherwise = return gamestate
+
+modifyParam :: Params -> Int -> Int -> Params
+modifyParam params index value
+    | index == 0 = let currValue = show (los params) 
+                       newValue = read (currValue ++ show value) ::Int
+                       in params {los = newValue}
+    | index == 1 = let currValue = show (maxWater params) 
+                       newValue = read (currValue ++ show value) ::Int
+                      in params {maxWater = newValue}
+    | index == 2 = let currValue = show (initialSeed params) 
+                       newValue = read (currValue ++ show value) ::Int
+                      in params {initialSeed = newValue}
+    | index == 3 = let currValue = show (treasurelh params) 
+                       newValue = read (currValue ++ show value) ::Int
+                      in params {treasurelh = newValue}
+    | index == 4 = let currValue = show (waterlh params) 
+                       newValue = read (currValue ++ show value) ::Int
+                    in params {waterlh = newValue}
+    | index == 5 = let currValue = show (portallh params) 
+                       newValue = read (currValue ++ show value) ::Int
+                    in params {portallh = newValue}
+    | index == 6 = let currValue = show (lavalh params) 
+                       newValue = read (currValue ++ show value) ::Int
+                    in params {lavalh = newValue}
+    | index == 7 = let currValue = show (lavalh' params) 
+                       newValue = read (currValue ++ show value) ::Int
+                    in params {lavalh' = newValue}
+    | index == 8 = let currValue = show (wormLength params) 
+                       newValue = read (currValue ++ show value) ::Int
+                    in params {wormLength = newValue}
+    | index == 9 = let currValue = show (wormSpawn params) 
+                       newValue = read (currValue ++ show value) ::Int
+                      in params {wormSpawn = newValue}
+    | otherwise  = params
+
+
 
 handleEventGameStarted :: Event -> Gamestate -> IO Gamestate
 handleEventGameStarted event gamestate 
@@ -107,7 +235,7 @@ handleEventNotGameStarted :: Event -> Gamestate -> IO Gamestate
 handleEventNotGameStarted event gamestate 
   | EventKey (MouseButton LeftButton) Down _ pt@(x,y) <- event =
       if x >= -50 && x <= 50 && y >= 75 && y <= 125
-        then return gamestate {gameStarted = True}
+        then return gamestate {paramsLoop = True}
         else return gamestate
   | otherwise = return gamestate
 
@@ -143,93 +271,35 @@ randomSt :: (RandomGen g, Random a, Num a) => Control.Monad.State.State g a
 randomSt = state (randomR (0,99)) 
 
 
-------------------------------- TM
+initGamestate :: Gamestate -> IO Gamestate
+initGamestate gamestate = do
+  let params = parameters gamestate
+      genList = infiniteGenerators (mkStdGen 33)
+      tileList = initTileList params
+      randomTiles = randomDesert (mkStdGen (initialSeed params)) tileList (repeat "A") params genList
+      randomTreasures = infiniteRandomLists (mkStdGen (initialSeed params * 2))
+      randomTreasuresTiles = (map . map) (corresp params) randomTreasures
+      desert' = zipWith (zipWith compareTreasure) randomTiles randomTreasuresTiles 
+  return gamestate{
+      desert = desert'
+    , parameters = params
+    , playerPos = (0,0)
+    , oldPlayerPos = (0,0)
+    , currentWater = maxWater (parameters gamestate)
+    , discoveredTiles = Set.fromList (getLos (0,0) (los(parameters gamestate)))
+    , collectedTreasures = []
+    , worms = []
+    , generators = infiniteGenerators (mkStdGen 42)
+    , currentStep = 0
+    , gameStarted = True 
+    , generator = mkStdGen 7
+    , savePath = "saves/"
+    , wormsTVars = []
+    , paramsLoop = False
+    , cursorCoordinate = (0,0)
+    , currentParam = 10
+  }
 
-spawnWorms :: Set.Set Coordinate -> Gamestate -> IO Gamestate
-spawnWorms discoveredTiles g = 
-  let d = desert g  
-      randomList = head (infiniteRandomLists (generators g !! currentStep g))
-      maybeWormList = map (\(coord,proba) -> spawnWorm d (wormSpawn (parameters g)) coord proba) $ zip (reduceSpawnLocations (worms g) (Set.toList discoveredTiles)) randomList
-      wormList = Maybe.catMaybes maybeWormList
-  in do 
-    tmvars <- mapM createWorm wormList
-    return g{wormsTVars = wormsTVars g ++ tmvars}
-
-createWorm :: Coordinate -> IO (STM.TVar Worm)
-createWorm coord = STM.newTVarIO (Worm [coord] True)
-
-moveWorm :: Gamestate -> (STM.TVar Worm, Int) -> IO ()
-moveWorm gamestate (worm, random) = do
-  currentWorm <- STM.atomically $ STM.readTVar worm
-  if length (coords currentWorm) == wormLength (parameters gamestate) || not (isEmerging currentWorm)
-  then 
-    STM.atomically ( STM.writeTVar worm (currentWorm {coords = take (length (coords currentWorm)-1) (coords currentWorm), isEmerging = False}))
-    
-  else do
-    otherWorms <-  mapM (STM.atomically . STM.readTVar) (wormsTVars gamestate)
-    let d = desert gamestate
-        wormHead = head (coords currentWorm)
-        adjTiles = getAdjTiles wormHead
-    tilesWithWorms <- mapM (\(x,y) -> coordElemMatTM (x,y) (wormsTVars gamestate)) adjTiles
-    let validTiles = map (\(x,y) -> d!!x!!y == "D") adjTiles
-        tilesWithNoWorm = map not tilesWithWorms
-        intermediateFinalCandidates = zip3 adjTiles validTiles tilesWithNoWorm
-        finalCandidates = filter isValidTile intermediateFinalCandidates
-        proba = ceiling ((1 / fromIntegral (length finalCandidates)) * 100)
-        targetTile = selectWormDirection proba finalCandidates random
-    if Maybe.isJust targetTile
-      then STM.atomically ( STM.writeTVar worm  (currentWorm {coords = Maybe.fromJust targetTile : coords currentWorm}))
-      else STM.atomically ( STM.writeTVar worm  (currentWorm {coords = take (length (coords currentWorm)-1) (coords currentWorm), isEmerging = False}))
-            
-            
-isValidTile :: (Coordinate, Bool, Bool) -> Bool
-isValidTile (c, a, b) = a && b 
-
-fst3 :: (a,b,c) -> a
-fst3 (x,_,_) = x
-
-selectWormDirection :: Int -> [(Coordinate, Bool, Bool)] -> Int -> Maybe Coordinate
-selectWormDirection proba candidates randomValue
-  | proba == 0 = Nothing
-  | proba == 100 = Just $ fst3  $ head candidates
-  | proba < 100 = Just $ fst3  (candidates !! (randomValue `div` proba))
-  | otherwise = Nothing
-
-  
-isDeadTM :: STM.TVar Worm -> IO Bool
-isDeadTM w = do
-   worm <- STM.atomically $ STM.readTVar w
-   return (null (coords worm))
- 
-
-createTVarsFromWorms :: [Worm] -> IO [STM.TVar Worm]
-createTVarsFromWorms  = 
-  mapM STM.newTVarIO 
-
-
------------------------------------TM
-
-isDead :: Worm -> Bool
-isDead w = null (coords w)
-
-
-spawnWorm :: Desert -> Int -> Coordinate -> Int -> Maybe Coordinate
-spawnWorm d spawnRate (x,y) proba = 
-  if d!!x!!y == desertTile && proba < spawnRate 
-    then Just (x,y)
-    else Nothing
-
-reduceSpawnLocations :: [Worm] -> [Coordinate] -> [Coordinate]
-reduceSpawnLocations worms discoveredTiles = 
-  let wormsCoords = map coords worms
-  in foldl (\\) discoveredTiles wormsCoords
-
-getAdjTiles :: Coordinate -> [Coordinate]
-getAdjTiles (x,y)
-    | x < 1 && y < 1  = [(x+1,y), (x,y+1)]
-    | x < 1           = [(x+1,y), (x,y+1), (x,y-1)]
-    | y < 1           = [(x+1,y), (x,y+1), (x-1,y)]
-    | otherwise       = [(x+1,y), (x,y+1), (x,y-1), (x-1,y)]
 
 generateRandoms :: Gamestate -> Int -> (Gamestate, [Int])
 generateRandoms gamestate 0 = (gamestate, [])

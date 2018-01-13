@@ -10,6 +10,7 @@ module DisplayGUI
 import Desert 
 import Strings
 import BFS
+import MapGeneration
 import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import qualified Data.Vector as Vec
@@ -29,6 +30,7 @@ windowHeight = snd computeWindowSize
 
 makePicture :: Gamestate -> IO Picture
 makePicture gamestate 
+  | paramsLoop gamestate = return (makePictureParamsLoop gamestate)
   | gameStarted gamestate = 
       let offsetX = - fromIntegral windowWidth  / 2
           offsetY = fromIntegral windowHeight / 2  - fromIntegral tileSize
@@ -48,6 +50,29 @@ makePicture gamestate
                     , Translate 400 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Portal : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) portalTile [] [(playerPos gamestate, 0)]))] 
                 )
   | otherwise = return (makePictureNotGameStarted gamestate)
+
+
+makePictureParamsLoop :: Gamestate -> Picture
+makePictureParamsLoop gamestate =
+  let range = take 10 [250, 200..]
+      params = ["S : " ++ show (los (parameters gamestate))
+              , "M : " ++ show (maxWater (parameters gamestate))
+              , "G : " ++ show (initialSeed (parameters gamestate))
+              , "T : " ++ show (treasurelh (parameters gamestate))
+              , "W : " ++ show (waterlh (parameters gamestate))
+              , "P : " ++ show (portallh (parameters gamestate))
+              , "L : " ++ show (lavalh (parameters gamestate))
+              , "LL : " ++ show (lavalh' (parameters gamestate))
+              , "X : " ++ show (wormLength (parameters gamestate))
+              , "Y : " ++ show (wormSpawn (parameters gamestate))]
+      rangeParams = zip range params
+      pictures = map (\(y, text) -> writeAt (-40) y text) rangeParams
+  in 
+  Pictures pictures
+
+writeAt :: Float -> Float -> String -> Picture
+writeAt x y text  = 
+  Translate x y $ Scale 0.1 0.1 $ Text text
 
 makePictureNotGameStarted :: Gamestate -> Picture
 makePictureNotGameStarted gamestate =
