@@ -64,7 +64,7 @@ main =
           stepWorld
 
 
-launchGameFromFile :: ParseInfos -> IO()
+launchGameFromFile :: ParseInfos -> IO Gamestate
 launchGameFromFile parseInfos = do
   let ppos = parsedPlayerPos parseInfos
       params = parsedParams parseInfos
@@ -79,29 +79,24 @@ launchGameFromFile parseInfos = do
       collectedTreasures = parsedCollected parseInfos
       desert = replaceAts collectedTreasures desert' "D"
   wormListTVar <- mapM STM.newTVarIO  wormList
-  playIO  (InWindow "Desert Game" (windowWidth,windowHeight+100) (600,200)) 
-          white 100
-          (Gamestate 
-              desert                                      -- desert
-              params                                      -- parameters
-              ppos                                        -- player position                    
-              ppos                                        -- precedent step's player position
-              (maxWater params)                           -- current water supply
-              (Set.fromList discoveredTiles)              -- coordinates of discovered tiles
-              collectedTreasures                          -- coordinates of collected treasures
-              wormList                                    -- worms list
-              (infiniteGenerators (mkStdGen 42))          -- infinite generators (used to spawn worms)
-              0                                           -- current step
-              False                                       -- boolean game is started or not
-              (mkStdGen 7)                                -- single generator
-              "saves/save.txt"  
-              wormListTVar
-              True
-              (0,0)
-              0)
-          makePicture 
-          handleEvent 
-          stepWorld
+  return (Gamestate 
+            desert                                      -- desert
+            params                                      -- parameters
+            ppos                                        -- player position                    
+            ppos                                        -- precedent step's player position
+            (maxWater params)                           -- current water supply
+            (Set.fromList discoveredTiles)              -- coordinates of discovered tiles
+            collectedTreasures                          -- coordinates of collected treasures
+            wormList                                    -- worms list
+            (infiniteGenerators (mkStdGen 42))          -- infinite generators (used to spawn worms)
+            0                                           -- current step
+            True                                       -- boolean game is started or not
+            (mkStdGen 7)                                -- single generator
+            "saves/save.txt"  
+            wormListTVar
+            False
+            (0,0)
+            0)
 
 handleEvent :: Event -> Gamestate -> IO Gamestate
 handleEvent event gamestate 
@@ -162,7 +157,7 @@ handleEventParamsLoop event gamestate
     return gamestate { parameters = param}
 
   | EventKey (SpecialKey KeyEnter) Down _ _ <- event
-  = if currentParam gamestate < 10
+  = if currentParam gamestate < 9
       then return gamestate {currentParam = currentParam gamestate + 1}
       else initGamestate gamestate--gamestate {paramsLoop = False, gameStarted = True}
 
@@ -236,7 +231,15 @@ handleEventNotGameStarted event gamestate
   | EventKey (MouseButton LeftButton) Down _ pt@(x,y) <- event =
       if x >= -50 && x <= 50 && y >= 75 && y <= 125
         then return gamestate {paramsLoop = True}
-        else return gamestate
+        else 
+          if x >= -50 && x <= 50 && y >= -25 && y <= 25
+            then do
+                parseInfos <-  parseFromFile gameParser "saves/test.txt"
+                case parseInfos of
+                  Left err -> return gamestate
+                  Right parseInfos -> launchGameFromFile parseInfos
+            else
+              return gamestate
   | otherwise = return gamestate
 
 
@@ -301,6 +304,38 @@ initGamestate gamestate = do
   }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 generateRandoms :: Gamestate -> Int -> (Gamestate, [Int])
 generateRandoms gamestate 0 = (gamestate, [])
 generateRandoms gamestate n = 
@@ -351,6 +386,30 @@ extractCoords worm = intercalate " , " (map makeCoord (coords worm))
 
 
   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 gameLoop :: Coordinate -> Desert -> Params -> Int -> Int -> [Coordinate] -> IO ()
 gameLoop ppos desert params currentWater currentTreasures undiscoveredTilesCoord = do
   let los' = getLos ppos (los params)
