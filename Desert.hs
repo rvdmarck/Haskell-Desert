@@ -54,7 +54,6 @@ data Gamestate = Gamestate
                  , currentStep         :: Int
                  , generator           :: StdGen
                  , wormsTVars          :: [STM.TVar Worm]
-                 , cursorCoordinate    :: (Float, Float)
                  , currentParam        :: Int
                  , currentFileName     :: String
                  , flags               :: GameFlags}

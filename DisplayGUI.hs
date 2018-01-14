@@ -49,7 +49,18 @@ makePicture gamestate
                     , Translate 400 (- fromIntegral windowHeight - 5) $ Scale 0.1 0.1 $ Text ("Current Treasures : " ++ show (length $ collectedTreasures gamestate))
                     , Translate 0 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Water : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) waterTile [] [(playerPos gamestate, 0)]))
                     , Translate 200 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Treasure : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) treasureTile [] [(playerPos gamestate, 0)]))
-                    , Translate 400 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Portal : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) portalTile [] [(playerPos gamestate, 0)]))] 
+                    , Translate 400 (- fromIntegral windowHeight - 25) $ Scale 0.1 0.1 $ Text ("Nearest Portal : " ++ show (bfs (desert gamestate) (playerPos gamestate, 0) portalTile [] [(playerPos gamestate, 0)]))
+                    , Translate 10 40 $ Scale 0.1 0.1 $ Text "w, a, s, d : move up, left, down, right | F5 to save | F9 to load"
+                    , Color (makeColor 1.0 0.6 0.0 1.0)  (tileShape tileSize 10 20)
+                    , Translate 12 20 $ Scale 0.1 0.1 $ Text " : Desert tile"
+                    , Color (makeColor 0.2 0.0 1.0 1.0)  (tileShape tileSize 130 20)
+                    , Translate 132 20 $ Scale 0.1 0.1 $ Text " : Water tile" 
+                    , Color (makeColor 0.0 0.0 0.0 1.0)  (tileShape tileSize 230 20)
+                    , Translate 232 20 $ Scale 0.1 0.1 $ Text " : Portal tile" 
+                    , Color (makeColor 1.0 0.0 0.0 1.0)  (tileShape tileSize 330 20)
+                    , Translate 332 20 $ Scale 0.1 0.1 $ Text " : Lava tile" 
+                    , Color (makeColor 0.0 1.0 0.0 1.0)  (tileShape tileSize 430 20)
+                    , Translate 432 20 $ Scale 0.1 0.1 $ Text " : Worm tile" ] 
                 )
   | otherwise = return (makePictureNotGameStarted gamestate)
 
@@ -67,20 +78,22 @@ makePictureParamsLoop gamestate =
               , "LL : " ++ show (lavalh' (parameters gamestate))
               , "X : " ++ show (wormLength (parameters gamestate))
               , "Y : " ++ show (wormSpawn (parameters gamestate))]
-      rangeParams = zip range params
-      pictures = map (\(y, text) -> writeAt (-40) y text) rangeParams
-  in 
-  Pictures pictures
+      rangeParams = zip3 range params [0,1..]
+      pictures = map (\(y, text, index) -> writeAt y text index gamestate) rangeParams
+                ++ [Translate (-100) 300 $ Scale 0.1 0.1 $ Text "Type in numbers then hit enter" ]
+  in Pictures pictures
 
-writeAt :: Float -> Float -> String -> Picture
-writeAt x y text  = 
-  Translate x y $ Scale 0.1 0.1 $ Text text
+writeAt :: Float -> String -> Int -> Gamestate-> Picture
+writeAt y text index g = 
+  if currentParam g == index
+    then Translate (-40) y $ Scale 0.1 0.1 $ Color (makeColor 1.0 0.2 0.2 1.0) $ Text text
+    else Translate (-40) y $ Scale 0.1 0.1 $ Text text
 
 
 makePictureChooseFile :: Gamestate -> Picture
 makePictureChooseFile gamestate =
-  Pictures [Translate (-40) 95 $ Scale 0.1 0.1 $ Text "Enter filename : "
-          , Translate (-40) (-5) $ Scale 0.1 0.1 $ Text (currentFileName gamestate)]
+  Pictures [Translate (-200) 95 $ Scale 0.1 0.1 $ Text "Enter filename (hit enter to validate) : "
+          , Translate (-40) 75 $ Scale 0.1 0.1 $ Text (currentFileName gamestate)]
 
 makePictureNotGameStarted :: Gamestate -> Picture
 makePictureNotGameStarted gamestate =
@@ -128,11 +141,11 @@ pictureOfTile gamestate x y tileSize posX posY tile
     Color (makeColor 0.0 1.0 0.0 1.0)  (tileShape tileSize posX posY)
   | (y,x) `elem` discoveredTiles gamestate =
     case tile of
-      "D"   -> Color (makeColor 1.0 0.5 0.0 1.0)  (tileShape tileSize posX posY)
+      "D"   -> Color (makeColor 1.0 0.6 0.0 1.0)  (tileShape tileSize posX posY)
       "L"   -> Color (makeColor 1.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
-      "W"   -> Color (makeColor 0.0 0.0 1.0 1.0)  (tileShape tileSize posX posY)
+      "W"   -> Color (makeColor 0.2 0.0 1.0 1.0)  (tileShape tileSize posX posY)
       "P"   -> Color (makeColor 0.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
-      "T"   -> Color (makeColor 1.0 0.5 0.0 1.0)  (tileShape tileSize posX posY)
+      "T"   -> Color (makeColor 1.0 0.6 0.0 1.0)  (tileShape tileSize posX posY)
       "Pl"  -> Color (makeColor 1.0 1.0 1.0 1.0)  (tileShape tileSize posX posY)
       "M"   -> Color (makeColor 0.0 1.0 0.0 1.0)  (tileShape tileSize posX posY)
    | not ((y,x) `elem` discoveredTiles gamestate) = 

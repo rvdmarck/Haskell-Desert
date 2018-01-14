@@ -79,4 +79,4 @@ getAlphaEvent event
     | EventKey (G.Char 'Z') Down _ _ <- event = "Z"
     | EventKey (G.Char '.') Down _ _ <- event = "."
     | EventKey (SpecialKey KeyEnter) Down _ _ <- event = "enter"
-    | otherwise = "undefined"
+    | otherwise = getNumEvent event
