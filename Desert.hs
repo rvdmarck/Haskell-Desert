@@ -13,6 +13,7 @@ module Desert
 , returnDesert
 , Gamestate (..)
 , Worm (..)
+, GameFlags (..)
 )where
 
 import Control.Monad.State
@@ -31,6 +32,15 @@ data Worm = Worm
             { coords     :: [Coordinate]
             , isEmerging :: Bool} deriving Show
 
+data GameFlags = GameFlags
+                 {  gameStarted    :: Bool
+                  , paramsLoop     :: Bool
+                  , chooseFile     :: Bool
+                  , gameFinished   :: Bool
+                  , saving         :: Bool
+                  , playerDead     :: Bool
+                 }
+
 data Gamestate = Gamestate
                  { desert              :: Desert
                  , parameters          :: Params
@@ -42,15 +52,12 @@ data Gamestate = Gamestate
                  , worms               :: [Worm]
                  , generators          :: [StdGen]
                  , currentStep         :: Int
-                 , gameStarted         :: Bool
                  , generator           :: StdGen
                  , wormsTVars          :: [STM.TVar Worm]
-                 , paramsLoop          :: Bool
                  , cursorCoordinate    :: (Float, Float)
                  , currentParam        :: Int
-                 , chooseFile          :: Bool
                  , currentFileName     :: String
-                 , gameFinished        :: Bool}
+                 , flags               :: GameFlags}
 
 -- Get the position of the tiles contained in the given Line of Sight
 getLos :: Coordinate -> Int -> [Coordinate]

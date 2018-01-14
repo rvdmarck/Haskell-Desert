@@ -30,9 +30,10 @@ windowHeight = snd computeWindowSize
 
 makePicture :: Gamestate -> IO Picture
 makePicture gamestate 
-  | paramsLoop gamestate = return (makePictureParamsLoop gamestate)
-  | chooseFile gamestate = return (makePictureChooseFile gamestate)
-  | gameStarted gamestate = 
+  | gameFinished (flags gamestate) = return (makePictureGameFinished gamestate)
+  | paramsLoop (flags gamestate) = return (makePictureParamsLoop gamestate)
+  | chooseFile (flags gamestate) = return (makePictureChooseFile gamestate)
+  | gameStarted (flags gamestate) = 
       let offsetX = - fromIntegral windowWidth  / 2
           offsetY = fromIntegral windowHeight / 2  - fromIntegral tileSize
           desert' = replaceAt (playerPos gamestate) (desert gamestate) "Pl"
@@ -88,7 +89,13 @@ makePictureNotGameStarted gamestate =
           , Translate 0 0 $ rectangleWire 100 50
           , Translate (-40) (-5) $ Scale 0.1 0.1 $ Text "LOAD GAME"]
     
-
+makePictureGameFinished :: Gamestate -> Picture
+makePictureGameFinished gamestate = 
+  Pictures [Translate (-40) 95 $ Scale 0.1 0.1 $ Text "GAME FINISHED "
+          , Translate (-40) (-5) $ Scale 0.1 0.1 $ Text finalMessage]
+  where finalMessage = if playerDead (flags gamestate)
+                        then "You are dead !"
+                        else "You won !"
 
 drawTile :: Vec.Vector String -> Gamestate -> Int -> Int -> Int -> String -> Picture
 drawTile desert gamestate offsetLine offsetCol index tile
@@ -125,7 +132,7 @@ pictureOfTile gamestate x y tileSize posX posY tile
       "L"   -> Color (makeColor 1.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
       "W"   -> Color (makeColor 0.0 0.0 1.0 1.0)  (tileShape tileSize posX posY)
       "P"   -> Color (makeColor 0.0 0.0 0.0 1.0)  (tileShape tileSize posX posY)
-      "T"   -> Color (makeColor 1.0 0.8 0.0 1.0)  (tileShape tileSize posX posY)
+      "T"   -> Color (makeColor 1.0 0.5 0.0 1.0)  (tileShape tileSize posX posY)
       "Pl"  -> Color (makeColor 1.0 1.0 1.0 1.0)  (tileShape tileSize posX posY)
       "M"   -> Color (makeColor 0.0 1.0 0.0 1.0)  (tileShape tileSize posX posY)
    | not ((y,x) `elem` discoveredTiles gamestate) = 

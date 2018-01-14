@@ -45,15 +45,12 @@ main =
               []                                          -- worms list
               []                                          -- infinite generators (used to spawn worms)
               0                                           -- current step
-              False                                       -- boolean game is started or not
               (mkStdGen 7)                                -- single generator 
               []
-              False
               (-30,250)
               0
-              False
               ""
-              False)
+              (GameFlags False False False False False False) )
           makePicture 
           handleEvent 
           stepWorld
@@ -85,21 +82,19 @@ launchGameFromFile parseInfos = do
             wormList                                    -- worms list
             (infiniteGenerators (mkStdGen 42))          -- infinite generators (used to spawn worms)
             0                                           -- current step
-            True                                       -- boolean game is started or not
             (mkStdGen 7)                                -- single generator
             wormListTVar
-            False
             (0,0)
             0
-            False
             ""
-            False)
+            (GameFlags True False False False False False))
 
 handleEvent :: Event -> Gamestate -> IO Gamestate
 handleEvent event gamestate 
-  | gameStarted gamestate = handleEventGameStarted event gamestate
-  | paramsLoop gamestate = handleEventParamsLoop event gamestate
-  | chooseFile gamestate = handleEventChooseFile event gamestate
+  | gameFinished (flags gamestate) = handleEventGameFinished event gamestate
+  | gameStarted (flags gamestate) = handleEventGameStarted event gamestate
+  | paramsLoop (flags gamestate) = handleEventParamsLoop event gamestate
+  | chooseFile (flags gamestate) = handleEventChooseFile event gamestate
   | otherwise = handleEventNotGameStarted event gamestate
 
 handleEventParamsLoop :: Event -> Gamestate -> IO Gamestate
@@ -174,13 +169,11 @@ handleEventGameStarted event gamestate
 
   | EventKey (SpecialKey KeyF5) Down _ _ <- event
   = let s = gameToString gamestate
-    in do
-      writeFile "saves/test.txt" s
-      return gamestate 
+    in return gamestate {flags = (flags gamestate) {gameStarted = False, chooseFile = True, saving = True}}
 
   | EventKey (SpecialKey KeyF9) Down _ _ <- event
   = let s = gameToString gamestate
-    in return gamestate {gameStarted = False, chooseFile = True}
+    in return gamestate {flags = (flags gamestate) {gameStarted = False, chooseFile = True, saving = False}}
 
   | otherwise
   = return gamestate
@@ -189,10 +182,10 @@ handleEventNotGameStarted :: Event -> Gamestate -> IO Gamestate
 handleEventNotGameStarted event gamestate 
   | EventKey (MouseButton LeftButton) Down _ pt@(x,y) <- event =
       if x >= -50 && x <= 50 && y >= 75 && y <= 125
-        then return gamestate {paramsLoop = True}
+        then return gamestate {flags = (flags gamestate) {paramsLoop = True}}
         else 
           if x >= -50 && x <= 50 && y >= -25 && y <= 25
-            then return gamestate {chooseFile = True}
+            then return gamestate {flags = (flags gamestate) {chooseFile = True}}
             else
               return gamestate
   | otherwise = return gamestate
@@ -205,11 +198,19 @@ handleEventChooseFile event gamestate =
         then if val /= "undefined"
               then return gamestate {currentFileName = currentFileName gamestate ++ val}
               else return gamestate
-        else do parseInfos <-  parseFromFile gameParser ("saves/" ++ currentFileName gamestate)
-                case parseInfos of
-                  Left err -> return gamestate
-                  Right parseInfos -> launchGameFromFile parseInfos
+        else if saving (flags gamestate)
+              then do
+                let s = gameToString gamestate
+                writeFile (currentFileName gamestate) s
+                return gamestate {flags = (flags gamestate) {chooseFile = False, gameStarted = True}, currentFileName = ""}
+              else do parseInfos <-  parseFromFile gameParser (currentFileName gamestate)
+                      case parseInfos of
+                        Left err -> return gamestate
+                        Right parseInfos -> launchGameFromFile parseInfos
 
+handleEventGameFinished :: Event -> Gamestate -> IO Gamestate
+handleEventGameFinished event gamestate = return gamestate
+                    
 stepWorld :: Float -> Gamestate -> IO Gamestate
 stepWorld _ gamestate = 
   if oldPlayerPos gamestate /= playerPos gamestate
@@ -228,12 +229,17 @@ stepWorld _ gamestate =
                   , currentWater = fillOrDecrementWater2 (currentWater g2) (desert g2) (True, playerPos g2) (maxWater (parameters g2))
                   , currentStep = currentStep g2 + 1}
       g4 <- spawnWorms (discoveredTiles gamestate) g3
-              
-      if desert g4 !! fst(playerPos g4) !! snd(playerPos g4) == "T"
-        then return g4{
+      let endGame = checkEndGame2
+      if checkEndGame2 gamestate == 1
+        then return gamestate{flags = (flags gamestate) {playerDead = True, gameFinished = True}}
+        else if checkEndGame2 gamestate == 2
+          then return gamestate{flags = (flags gamestate) {playerDead = False, gameFinished = True}}
+          else
+            if desert g4 !! fst(playerPos g4) !! snd(playerPos g4) == "T"
+            then return g4{
                     desert = replaceAt (playerPos g4) (desert g4) desertTile
                   , collectedTreasures = playerPos g4 : collectedTreasures g4}
-        else return g4
+            else return g4
     else return gamestate
 
 
@@ -256,11 +262,9 @@ initGamestate gamestate = do
     , currentWater = maxWater (parameters gamestate)
     , discoveredTiles = Set.fromList (getLos (0,0) (los(parameters gamestate)))
     , generators = infiniteGenerators (mkStdGen 42)
-    , gameStarted = True 
-    , paramsLoop = False
     , cursorCoordinate = (0,0)
     , currentParam = 10
-    , chooseFile = False
+    , flags = GameFlags True False False False False False
   }
 
 
@@ -407,3 +411,11 @@ checkEndGame desert ppos currWater
   | desert !! fst ppos !! snd ppos `elem` [lavaTile, "L'"] || currWater == 0 = return 1
   | desert !! fst ppos !! snd ppos == portalTile = return 2
   | otherwise = return 0
+
+checkEndGame2 :: Gamestate -> Int
+checkEndGame2 gamestate 
+  | desert gamestate !! fst (playerPos gamestate) !! snd (playerPos gamestate) `elem` [lavaTile, "L'"] 
+    || currentWater gamestate == 0 
+    || coordElemMat (playerPos gamestate) (worms gamestate) = 1
+  | desert gamestate !! fst (playerPos gamestate) !! snd (playerPos gamestate) == portalTile = 2
+  | otherwise = 0
