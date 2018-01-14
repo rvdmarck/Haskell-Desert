@@ -95,7 +95,7 @@ makePictureGameFinished gamestate =
           , Translate (-40) (-5) $ Scale 0.1 0.1 $ Text finalMessage]
   where finalMessage = if playerDead (flags gamestate)
                         then "You are dead !"
-                        else "You won !"
+                        else "You won with " ++ show(length(collectedTreasures gamestate)) ++ " treasures !"
 
 drawTile :: Vec.Vector String -> Gamestate -> Int -> Int -> Int -> String -> Picture
 drawTile desert gamestate offsetLine offsetCol index tile

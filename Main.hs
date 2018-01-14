@@ -229,10 +229,10 @@ stepWorld _ gamestate =
                   , currentWater = fillOrDecrementWater2 (currentWater g2) (desert g2) (True, playerPos g2) (maxWater (parameters g2))
                   , currentStep = currentStep g2 + 1}
       g4 <- spawnWorms (discoveredTiles gamestate) g3
-      let endGame = checkEndGame2
-      if checkEndGame2 gamestate == 1
+      let endGame = checkEndGame gamestate
+      if endGame == 1
         then return gamestate{flags = (flags gamestate) {playerDead = True, gameFinished = True}}
-        else if checkEndGame2 gamestate == 2
+        else if endGame == 2
           then return gamestate{flags = (flags gamestate) {playerDead = False, gameFinished = True}}
           else
             if desert g4 !! fst(playerPos g4) !! snd(playerPos g4) == "T"
@@ -349,71 +349,8 @@ extractCoords :: Worm -> String
 extractCoords worm = intercalate " , " (map makeCoord (coords worm))
 
 
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-gameLoop :: Coordinate -> Desert -> Params -> Int -> Int -> [Coordinate] -> IO ()
-gameLoop ppos desert params currentWater currentTreasures undiscoveredTilesCoord = do
-  let los' = getLos ppos (los params)
-  let undiscoveredTilesCoord' = undiscoveredTilesCoord ++ los'
-  _ <- printInfos desert ppos currentWater currentTreasures undiscoveredTilesCoord'
-  input <- getLine
-  newpos <- doMove input ppos
-  currentWater' <- fillOrDecrementWater currentWater desert newpos (maxWater params)
-  endGame <- checkEndGame desert (snd newpos) currentWater'
-  currentTreasures' <- checkTreasureFound currentTreasures (desert !! fst(snd newpos) !! snd (snd newpos))
-
-  if currentTreasures' /= currentTreasures
-    then do
-      desert' <- pickUpTreasure desert (snd newpos)
-      _ <- return desert'
-      checkContinue endGame newpos desert' params currentWater' currentTreasures' undiscoveredTilesCoord'
-
-    else do
-      desert' <- returnDesert desert
-      _ <- return desert'
-      checkContinue endGame newpos desert' params currentWater' currentTreasures' undiscoveredTilesCoord'
-
-
-checkContinue :: Int -> (a, Coordinate) -> Desert -> Params -> Int -> Int -> [Coordinate] -> IO ()
-checkContinue endGame newpos desert' params currentWater' currentTreasures' undiscoveredTilesCoord
-    | endGame == 0 =
-      gameLoop (snd newpos) desert' params currentWater'
-        currentTreasures' undiscoveredTilesCoord
-    | endGame == 1 = putStrLn "You're DEAD !"
-    | otherwise = when (endGame == 2) $ putStrLn "You WON !"
-
-
-checkEndGame :: Desert ->  Coordinate -> Int -> IO Int
-checkEndGame desert ppos currWater
-  | desert !! fst ppos !! snd ppos `elem` [lavaTile, "L'"] || currWater == 0 = return 1
-  | desert !! fst ppos !! snd ppos == portalTile = return 2
-  | otherwise = return 0
-
-checkEndGame2 :: Gamestate -> Int
-checkEndGame2 gamestate 
+checkEndGame :: Gamestate -> Int
+checkEndGame gamestate 
   | desert gamestate !! fst (playerPos gamestate) !! snd (playerPos gamestate) `elem` [lavaTile, "L'"] 
     || currentWater gamestate == 0 
     || coordElemMat (playerPos gamestate) (worms gamestate) = 1
