@@ -14,7 +14,6 @@ module Strings
 
 
 separator = "======================================================================"
---playerString = "\2000"
 playerString = "Pl"
 desertTile = "D"
 lavaTile = "L"

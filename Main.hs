@@ -52,10 +52,6 @@ main =
           makePicture 
           handleEvent 
           stepWorld
-
-
-
-
                     
 stepWorld :: Float -> Gamestate -> IO Gamestate
 stepWorld _ gamestate = 
@@ -75,18 +71,19 @@ stepWorld _ gamestate =
                   , currentWater = fillOrDecrementWater2 (currentWater g2) (desert g2) (True, playerPos g2) (maxWater (parameters g2))
                   , currentStep = currentStep g2 + 1}
       g4 <- spawnWorms (Set.union (discoveredTiles gamestate) (Set.fromList (getLos (playerPos gamestate) ((los (parameters gamestate))+5)))) g3
-      let endGame = checkEndGame g4
-      if endGame == 1
-        then return gamestate{flags = (flags gamestate) {playerDead = True, gameFinished = True}}
-        else if endGame == 2
-          then return gamestate{flags = (flags gamestate) {playerDead = False, gameFinished = True}}
-          else
-            if desert g4 !! fst(playerPos g4) !! snd(playerPos g4) == "T"
-            then return g4{
-                    desert = replaceAt (playerPos g4) (desert g4) desertTile
-                  , collectedTreasures = playerPos g4 : collectedTreasures g4}
-            else return g4
+      handleEndGame (checkEndGame g4) g4
     else return gamestate
+
+
+handleEndGame :: Int -> Gamestate -> IO Gamestate
+handleEndGame endGame gamestate
+  | endGame == 1 = return gamestate{flags = (flags gamestate) {playerDead = True, gameFinished = True}}
+  | endGame == 2 = return gamestate{flags = (flags gamestate) {playerDead = False, gameFinished = True}}
+  | otherwise = if desert gamestate !! fst(playerPos gamestate) !! snd(playerPos gamestate) == "T"
+                  then return gamestate{
+                          desert = replaceAt (playerPos gamestate) (desert gamestate) desertTile
+                        , collectedTreasures = playerPos gamestate : collectedTreasures gamestate}
+                  else return gamestate
 
 
 randomSt :: (RandomGen g, Random a, Num a) => Control.Monad.State.State g a  
