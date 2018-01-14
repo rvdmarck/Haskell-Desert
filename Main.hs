@@ -112,7 +112,9 @@ handleEventParamsLoop event gamestate =
               else return gamestate
         else if currentParam gamestate < 9
           then return gamestate {currentParam = currentParam gamestate + 1}
-          else initGamestate gamestate
+          else if conditionParam (parameters gamestate)
+                then initGamestate gamestate
+                else return gamestate {parameters = Params 0 0 0 0 0 0 0 0 0 0, currentParam = 0}
 
 modifyParam :: Params -> Int -> Int -> Params
 modifyParam params index value
@@ -148,7 +150,9 @@ modifyParam params index value
                       in params {wormSpawn = newValue}
     | otherwise  = params
 
-
+conditionParam :: Params -> Bool 
+conditionParam p = 
+  waterlh p + portallh p + lavalh p <= 100 || waterlh p + portallh p + lavalh' p <= 100
 
 handleEventGameStarted :: Event -> Gamestate -> IO Gamestate
 handleEventGameStarted event gamestate 
