@@ -7,7 +7,7 @@ import Control.Monad
 import Data.List
 import Text.Read
 import Graphics.Gloss
-import Graphics.Gloss.Interface.IO.Game
+import Graphics.Gloss.Interface.IO.Game as G
 import qualified Data.Vector as Vec
 import qualified Data.Set as Set
 import qualified Data.Maybe as Maybe
@@ -22,19 +22,12 @@ import DisplayGUI
 import Desert
 import Parser
 import Worm
+import Events
 
 
 type Desert = [[String]]
 type Coordinate = (Int, Int)
 
-{-
-main :: IO ()
-main = do
-  parseInfos <-  parseFromFile gameParser "saves/test.txt"
-  case parseInfos of
-    Left err -> print err
-    Right parseInfos -> launchGameFromFile parseInfos
--}
   
 main :: IO()
 main =
@@ -53,12 +46,14 @@ main =
               []                                          -- infinite generators (used to spawn worms)
               0                                           -- current step
               False                                       -- boolean game is started or not
-              (mkStdGen 7)                                -- single generator
-              ""  
+              (mkStdGen 7)                                -- single generator 
               []
               False
               (-30,250)
-              0)
+              0
+              False
+              ""
+              False)
           makePicture 
           handleEvent 
           stepWorld
@@ -92,76 +87,32 @@ launchGameFromFile parseInfos = do
             0                                           -- current step
             True                                       -- boolean game is started or not
             (mkStdGen 7)                                -- single generator
-            "saves/save.txt"  
             wormListTVar
             False
             (0,0)
-            0)
+            0
+            False
+            ""
+            False)
 
 handleEvent :: Event -> Gamestate -> IO Gamestate
 handleEvent event gamestate 
   | gameStarted gamestate = handleEventGameStarted event gamestate
   | paramsLoop gamestate = handleEventParamsLoop event gamestate
+  | chooseFile gamestate = handleEventChooseFile event gamestate
   | otherwise = handleEventNotGameStarted event gamestate
 
 handleEventParamsLoop :: Event -> Gamestate -> IO Gamestate
-handleEventParamsLoop event gamestate 
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '0') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 0
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '1') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 1
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '2') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 2
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '3') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 3
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '4') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 4
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '5') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 5
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '6') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 6
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '7') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 7
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '8') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 8
-    return gamestate { parameters = param}
-
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char '9') Down _ _ <- event
-  = do 
-    let param = modifyParam (parameters gamestate) (currentParam gamestate) 9
-    return gamestate { parameters = param}
-
-  | EventKey (SpecialKey KeyEnter) Down _ _ <- event
-  = if currentParam gamestate < 9
-      then return gamestate {currentParam = currentParam gamestate + 1}
-      else initGamestate gamestate--gamestate {paramsLoop = False, gameStarted = True}
-
-  | otherwise = return gamestate
+handleEventParamsLoop event gamestate = 
+  let val = getNumEvent event
+  in if val /= "enter"
+        then if val /= "undefined"
+              then let param = modifyParam (parameters gamestate) (currentParam gamestate) (read val)
+                   in return gamestate {parameters = param}
+              else return gamestate
+        else if currentParam gamestate < 9
+          then return gamestate {currentParam = currentParam gamestate + 1}
+          else initGamestate gamestate
 
 modifyParam :: Params -> Int -> Int -> Params
 modifyParam params index value
@@ -201,18 +152,18 @@ modifyParam params index value
 
 handleEventGameStarted :: Event -> Gamestate -> IO Gamestate
 handleEventGameStarted event gamestate 
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char 'd') Down _ _ <- event
+  | EventKey (G.Char 'd') Down _ _ <- event
   = return gamestate {playerPos = (fst(playerPos gamestate), snd(playerPos gamestate) + 1)}
 
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char 's') Down _ _ <- event
+  | EventKey (G.Char 's') Down _ _ <- event
   = return gamestate {playerPos = (fst(playerPos gamestate) + 1, snd(playerPos gamestate))}
 
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char 'w') Down _ _ <- event
+  | EventKey (G.Char 'w') Down _ _ <- event
   = if fst(playerPos gamestate) > 0
       then return gamestate {playerPos = (fst(playerPos gamestate) - 1, snd(playerPos gamestate))}
       else return gamestate
 
-  | EventKey (Graphics.Gloss.Interface.IO.Game.Char 'a') Down _ _ <- event
+  | EventKey (G.Char 'a') Down _ _ <- event
   = if snd(playerPos gamestate) > 0
       then return gamestate {playerPos = (fst(playerPos gamestate), snd(playerPos gamestate) - 1)}
       else return gamestate
@@ -222,6 +173,10 @@ handleEventGameStarted event gamestate
     in do
       writeFile "saves/test.txt" s
       return gamestate 
+
+  | EventKey (SpecialKey KeyF9) Down _ _ <- event
+  = let s = gameToString gamestate
+    in return gamestate {gameStarted = False, chooseFile = True}
 
   | otherwise
   = return gamestate
@@ -233,15 +188,23 @@ handleEventNotGameStarted event gamestate
         then return gamestate {paramsLoop = True}
         else 
           if x >= -50 && x <= 50 && y >= -25 && y <= 25
-            then do
-                parseInfos <-  parseFromFile gameParser "saves/test.txt"
-                case parseInfos of
-                  Left err -> return gamestate
-                  Right parseInfos -> launchGameFromFile parseInfos
+            then return gamestate {chooseFile = True}
             else
               return gamestate
   | otherwise = return gamestate
 
+
+handleEventChooseFile :: Event -> Gamestate -> IO Gamestate
+handleEventChooseFile event gamestate = 
+  let val = getAlphaEvent event
+  in if val /= "enter"
+        then if val /= "undefined"
+              then return gamestate {currentFileName = currentFileName gamestate ++ val}
+              else return gamestate
+        else do parseInfos <-  parseFromFile gameParser ("saves/" ++ currentFileName gamestate)
+                case parseInfos of
+                  Left err -> return gamestate
+                  Right parseInfos -> launchGameFromFile parseInfos
 
 stepWorld :: Float -> Gamestate -> IO Gamestate
 stepWorld _ gamestate = 
@@ -286,21 +249,14 @@ initGamestate gamestate = do
   return gamestate{
       desert = desert'
     , parameters = params
-    , playerPos = (0,0)
-    , oldPlayerPos = (0,0)
     , currentWater = maxWater (parameters gamestate)
     , discoveredTiles = Set.fromList (getLos (0,0) (los(parameters gamestate)))
-    , collectedTreasures = []
-    , worms = []
     , generators = infiniteGenerators (mkStdGen 42)
-    , currentStep = 0
     , gameStarted = True 
-    , generator = mkStdGen 7
-    , savePath = "saves/"
-    , wormsTVars = []
     , paramsLoop = False
     , cursorCoordinate = (0,0)
     , currentParam = 10
+    , chooseFile = False
   }
 
 

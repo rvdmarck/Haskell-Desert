@@ -31,6 +31,7 @@ windowHeight = snd computeWindowSize
 makePicture :: Gamestate -> IO Picture
 makePicture gamestate 
   | paramsLoop gamestate = return (makePictureParamsLoop gamestate)
+  | chooseFile gamestate = return (makePictureChooseFile gamestate)
   | gameStarted gamestate = 
       let offsetX = - fromIntegral windowWidth  / 2
           offsetY = fromIntegral windowHeight / 2  - fromIntegral tileSize
@@ -73,6 +74,12 @@ makePictureParamsLoop gamestate =
 writeAt :: Float -> Float -> String -> Picture
 writeAt x y text  = 
   Translate x y $ Scale 0.1 0.1 $ Text text
+
+
+makePictureChooseFile :: Gamestate -> Picture
+makePictureChooseFile gamestate =
+  Pictures [Translate (-40) 95 $ Scale 0.1 0.1 $ Text "Enter filename : "
+          , Translate (-40) (-5) $ Scale 0.1 0.1 $ Text (currentFileName gamestate)]
 
 makePictureNotGameStarted :: Gamestate -> Picture
 makePictureNotGameStarted gamestate =

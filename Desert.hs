@@ -44,11 +44,13 @@ data Gamestate = Gamestate
                  , currentStep         :: Int
                  , gameStarted         :: Bool
                  , generator           :: StdGen
-                 , savePath            :: String
                  , wormsTVars          :: [STM.TVar Worm]
                  , paramsLoop          :: Bool
                  , cursorCoordinate    :: (Float, Float)
-                 , currentParam        :: Int}
+                 , currentParam        :: Int
+                 , chooseFile          :: Bool
+                 , currentFileName     :: String
+                 , gameFinished        :: Bool}
 
 -- Get the position of the tiles contained in the given Line of Sight
 getLos :: Coordinate -> Int -> [Coordinate]
